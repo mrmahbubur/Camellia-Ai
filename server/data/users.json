@@ -1,0 +1,17 @@
+{
+  "usr_fffc6463e6894a72": {
+    "id": "usr_fffc6463e6894a72",
+    "username": "shahin_test",
+    "email": "shahin_test@user.local",
+    "passwordHash": "26ccc9e277648d690ce15e800a2a230f8f8bd6b54e9e2bb0ee086b4461f3a26dd89110b4fd9a1502e48efccc7537d3ee7f7939ffbfbff9ff6da4392f4a48138f",
+    "salt": "4dac395d4c216b00e2520e33bd505c198aa3fad58fe2eb8ca41cd6f6877d8c02",
+    "createdAt": "2026-10-29T08:32:42.116Z",
+    "lastLogin": "2026-10-29T08:32:46.351Z",
+    "savedData": {
+      "notes": "Welcome to your private encrypted workspace session.",
+      "themePreference": "dark-realistic-cyan",
+      "chatSessionCount": 0,
+      "savedChats": []
+    }
+  }
+}

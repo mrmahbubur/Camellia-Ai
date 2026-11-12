@@ -1,0 +1,6 @@
+{
+  "name": "Camellia Room — M R S Interactive AI Concierge",
+  "description": "Interactive 3D-lit dark cyan workspace room featuring Camellia, the personal AI voice and chat assistant for M R S, complete with tabletop voice controls, live on-screen subtitles, suggested questions, and verified contacts.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

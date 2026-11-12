@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/camellia-profile.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Camellia AI — Intelligent Assistant</title>
+    <meta name="description" content="Production-ready conversational AI assistant powered by Gemini models with real-time web grounding, multimodal support, and seamless streaming." />
+    <meta property="og:title" content="Camellia AI — Intelligent Assistant" />
+    <meta property="og:description" content="Production-ready conversational AI assistant powered by Gemini models with real-time web grounding, multimodal support, and seamless streaming." />
+    <meta property="og:image" content="/assets/young_sweet_girl_1787078669904-jjixDzch.jpg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossOrigin="anonymous" />
+  </head>
+  <body class="bg-slate-950 text-slate-100 antialiased selection:bg-teal-500/30 selection:text-teal-200">
+    <div id="root"></div>
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          for (var r of registrations) {
+            r.unregister();
+          }
+        });
+      }
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
