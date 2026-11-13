@@ -18,16 +18,16 @@ export interface BackendVoiceConfig {
   priorityVoices: string[];
 }
 
-const DEFAULT_CLAUDE_VOICE_CONFIG: BackendVoiceConfig = {
-  provider: 'Claude AI Voice Engine',
+const DEFAULT_VOICE_CONFIG: BackendVoiceConfig = {
+  provider: 'Camellia Voice Engine',
   name: 'Claude AI Female Voice',
   gender: 'female',
   preferredLang: 'en-US',
   rate: 1.0,
-  pitch: 1.06,
+  pitch: 1.04,
   volume: 1.0,
-  persona: 'Claude AI Signature Warm, Calm & Articulate Female',
-  description: 'Single unified voice for all narrations, greetings, and message reads.',
+  persona: 'Calm, articulate female assistant voice',
+  description: 'On-demand narration for English and Bengali messages.',
   priorityVoices: [
     'Google UK English Female',
     'Microsoft Sonia Online (Natural) - English (United Kingdom)',
@@ -46,9 +46,7 @@ class VoiceEngine {
   private currentUtterance: SpeechSynthesisUtterance | null = null;
   private isMuted: boolean = false;
   private voices: SpeechSynthesisVoice[] = [];
-  private audioCtx: AudioContext | null = null;
-  private backendConfig: BackendVoiceConfig = DEFAULT_CLAUDE_VOICE_CONFIG;
-  private isConfigLoaded: boolean = false;
+  private backendConfig: BackendVoiceConfig = DEFAULT_VOICE_CONFIG;
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -63,7 +61,6 @@ class VoiceEngine {
     }
   }
 
-  // Sync voice profile directly with the backend API
   public async syncWithBackend(): Promise<void> {
     try {
       const res = await fetch('/api/voice/config');
@@ -71,11 +68,10 @@ class VoiceEngine {
         const data = await res.json();
         if (data.voice) {
           this.backendConfig = data.voice;
-          this.isConfigLoaded = true;
         }
       }
     } catch {
-      // Use fallback Claude voice configuration
+      // Fallback to default config silently
     }
   }
 
@@ -94,74 +90,11 @@ class VoiceEngine {
     return this.voices;
   }
 
-  public getVoiceConfig(): BackendVoiceConfig {
-    return this.backendConfig;
-  }
-
-  public unlockAudioContext(): void {
-    if (typeof window === 'undefined') return;
-    try {
-      if (!this.audioCtx) {
-        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-        if (AudioContextClass) {
-          this.audioCtx = new AudioContextClass();
-        }
-      }
-      if (this.audioCtx && this.audioCtx.state === 'suspended') {
-        this.audioCtx.resume();
-      }
-    } catch {
-      // AudioContext unavailable
-    }
-  }
-
-  public playChime(type: 'click' | 'chime' | 'success' = 'chime'): void {
-    if (typeof window === 'undefined') return;
-    try {
-      this.unlockAudioContext();
-      if (!this.audioCtx) return;
-
-      const osc = this.audioCtx.createOscillator();
-      const gain = this.audioCtx.createGain();
-      osc.connect(gain);
-      gain.connect(this.audioCtx.destination);
-
-      const now = this.audioCtx.currentTime;
-      if (type === 'click') {
-        osc.frequency.setValueAtTime(600, now);
-        gain.gain.setValueAtTime(0.04, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-        osc.start(now);
-        osc.stop(now + 0.05);
-      } else if (type === 'success') {
-        osc.frequency.setValueAtTime(523.25, now);
-        osc.frequency.setValueAtTime(659.25, now + 0.08);
-        gain.gain.setValueAtTime(0.08, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
-        osc.start(now);
-        osc.stop(now + 0.25);
-      } else {
-        osc.frequency.setValueAtTime(783.99, now);
-        osc.frequency.setValueAtTime(1046.50, now + 0.1);
-        gain.gain.setValueAtTime(0.07, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
-        osc.start(now);
-        osc.stop(now + 0.3);
-      }
-    } catch {
-      // Ignore
-    }
-  }
-
   public setMuted(muted: boolean): void {
     this.isMuted = muted;
     if (muted && this.synth) {
       this.stop();
     }
-  }
-
-  public getIsMuted(): boolean {
-    return this.isMuted;
   }
 
   public stop(): void {
@@ -172,39 +105,40 @@ class VoiceEngine {
   }
 
   public cleanText(rawText: string): string {
-    let clean = rawText.replace(/[*#_`~[\]()<>{}^]/g, ' ');
-    clean = clean.replace(/\bMRS\b/gi, 'M R S');
-    clean = clean.replace(/\bMrs\.\b/gi, 'M R S');
-    clean = clean.replace(/\bMrs\b/gi, 'M R S');
-    clean = clean.replace(/\bmrs\b/gi, 'M R S');
-    clean = clean.replace(/\bM\.R\.S\.\b/gi, 'M R S');
-    clean = clean.replace(/\bM\.R\.S\b/gi, 'M R S');
-    clean = clean.replace(/\bIT\b/g, 'I T');
-    clean = clean.replace(/https?:\/\/\S+/gi, 'the website link');
-    clean = clean.replace(/\s+/g, ' ').trim();
+    let clean = rawText
+      .replace(/```[\s\S]*?```/g, ' code block omitted ')
+      .replace(/\$\$[\s\S]*?\$\$/g, ' equation ')
+      .replace(/\$[^$\n]+\$/g, ' formula ')
+      .replace(/[*#_`~[\]()<>{}^]/g, ' ')
+      .replace(/https?:\/\/\S+/gi, 'link')
+      .replace(/\s+/g, ' ')
+      .trim();
     return clean;
   }
 
-  // Find the signature Claude AI female voice from browser synthesizers based on backend priorities
-  private resolveClaudeAIFemaleVoice(): SpeechSynthesisVoice | null {
+  private resolveVoice(isBengali: boolean): SpeechSynthesisVoice | null {
     const available = this.getVoices();
     if (!available || available.length === 0) return null;
 
-    const priorities = this.backendConfig.priorityVoices || DEFAULT_CLAUDE_VOICE_CONFIG.priorityVoices;
+    if (isBengali) {
+      const bnVoice =
+        available.find((v) => v.lang.toLowerCase().startsWith('bn')) ||
+        available.find((v) => v.name.toLowerCase().includes('bengali') || v.name.toLowerCase().includes('bangla'));
+      if (bnVoice) return bnVoice;
+    }
 
-    // 1. Try to find an exact match from backend priority list
+    const priorities = this.backendConfig.priorityVoices || DEFAULT_VOICE_CONFIG.priorityVoices;
+
     for (const target of priorities) {
       const match = available.find((v) => v.name.toLowerCase() === target.toLowerCase());
       if (match) return match;
     }
 
-    // 2. Try partial match from priority list
     for (const target of priorities) {
       const match = available.find((v) => v.name.toLowerCase().includes(target.toLowerCase()));
       if (match) return match;
     }
 
-    // 3. Fallback to any natural female English voice
     const naturalFemale = available.find(
       (v) =>
         v.lang.toLowerCase().startsWith('en') &&
@@ -218,27 +152,12 @@ class VoiceEngine {
     );
     if (naturalFemale) return naturalFemale;
 
-    // 4. Any English voice
-    const anyEnglish = available.find((v) => v.lang.toLowerCase().startsWith('en'));
-    if (anyEnglish) return anyEnglish;
-
-    return available[0] || null;
+    return available.find((v) => v.lang.toLowerCase().startsWith('en')) || available[0] || null;
   }
 
-  /**
-   * Single Unified Voice for Everything:
-   * Uses the Claude AI Female Voice configuration (en-US, rate 1.0, pitch 1.06)
-   * governed directly by the backend for all audio playback.
-   */
-  public speak(
-    text: string,
-    callbacks?: VoiceEngineCallbacks
-  ): void {
+  public speak(text: string, callbacks?: VoiceEngineCallbacks): void {
     if (this.isMuted || !this.synth) {
-      callbacks?.onStart?.();
-      setTimeout(() => {
-        callbacks?.onEnd?.();
-      }, 1000);
+      callbacks?.onEnd?.();
       return;
     }
 
@@ -250,26 +169,25 @@ class VoiceEngine {
       return;
     }
 
+    const isBengali = /[\u0980-\u09FF]/.test(spokenText);
     const utterance = new SpeechSynthesisUtterance(spokenText);
-    utterance.lang = this.backendConfig.preferredLang || 'en-US';
+    utterance.lang = isBengali ? 'bn-BD' : (this.backendConfig.preferredLang || 'en-US');
     utterance.rate = this.backendConfig.rate || 1.0;
-    utterance.pitch = this.backendConfig.pitch || 1.06;
+    utterance.pitch = isBengali ? 1.0 : (this.backendConfig.pitch || 1.04);
     utterance.volume = this.backendConfig.volume || 1.0;
 
-    const claudeVoice = this.resolveClaudeAIFemaleVoice();
-    if (claudeVoice) {
-      utterance.voice = claudeVoice;
+    const selectedVoice = this.resolveVoice(isBengali);
+    if (selectedVoice) {
+      utterance.voice = selectedVoice;
     }
 
-    utterance.onstart = () => {
-      callbacks?.onStart?.();
-    };
-
+    utterance.onstart = () => callbacks?.onStart?.();
     utterance.onend = () => {
+      this.currentUtterance = null;
       callbacks?.onEnd?.();
     };
-
     utterance.onerror = (e) => {
+      this.currentUtterance = null;
       callbacks?.onError?.(e);
       callbacks?.onEnd?.();
     };
@@ -278,8 +196,7 @@ class VoiceEngine {
       if (event.name === 'word') {
         const textFromIndex = spokenText.slice(event.charIndex);
         const match = textFromIndex.match(/\S+/);
-        const word = match ? match[0] : '';
-        callbacks?.onBoundary?.(event.charIndex, word);
+        callbacks?.onBoundary?.(event.charIndex, match ? match[0] : '');
       }
     };
 

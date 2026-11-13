@@ -3,7 +3,7 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 import {
   registerUser,
   authenticateUser,
@@ -11,7 +11,7 @@ import {
   updateUserData,
   revokeSession,
   checkRateLimit
-} from './server/authStore';
+} from './server/authStore.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -33,50 +33,158 @@ app.use(cors());
 app.use(express.json({ limit: '15mb' }));
 
 // Shared Google GenAI client (Server-Side only)
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build',
+function getGenAIClient(): GoogleGenAI {
+  return new GoogleGenAI({
+    apiKey: process.env.GEMINI_API_KEY,
+    httpOptions: {
+      headers: {
+        'User-Agent': 'aistudio-build',
+      },
     },
-  },
-});
+  });
+}
 
-const DEFAULT_SYSTEM_INSTRUCTION = `You are Camellia AI, an advanced, highly intelligent conversational AI assistant similar to ChatGPT and Claude.
-You excel at:
-- Answering questions directly, accurately, and thoroughly.
-- Providing real-time web-grounded research, recent news, and verifiable facts.
-- Writing clean, idiomatic code across all modern programming languages with markdown formatting and explanations.
-- Performing precise mathematical calculations and rendering LaTeX formulas when helpful.
-- Analyzing uploaded documents, codebases, text files, and images.
-- Supporting multi-turn conversational nuance, creative writing, translation, and structured explanations.
-- Adapting seamlessly to user instructions and responding fluently in any requested language (e.g., English, Bengali/Bangla, etc.).
-Structure your responses with readable markdown, informative headings, lists, tables, and concise code blocks.`;
+const DEFAULT_SYSTEM_INSTRUCTION = `You are Camellia AI, an advanced, highly intelligent AI assistant and real-time answer engine.
+Your capabilities:
+- Answer questions directly, putting the main conclusion first and expanding with clear structure (headings, lists, tables).
+- Use Google Search grounding automatically whenever current events, recent developments, live facts, or verification are helpful. Never invent URLs or fabricate citations.
+- Explain technical topics clearly and write clean, idiomatic, production-ready code in well-labeled markdown code blocks.
+- Solve mathematics, engineering, and quantitative problems accurately, formatting equations cleanly with LaTeX ($...$ and $$...$$).
+- Analyze uploaded images, PDFs, documents, and code files thoroughly.
+- Adapt smoothly across multi-turn conversations and reply fluently in the user's preferred language (including English and Bengali / বাংলা).`;
 
-// Supported models catalog
+// Supported models aligned with @google/genai catalog
 const AVAILABLE_MODELS = [
   {
     id: 'gemini-3.8-flash',
     name: 'Gemini 3.8 Flash',
-    tag: 'Fast & Intelligent (Default)',
-    description: 'Latest high-speed multimodal model with advanced reasoning and real-time Google Search grounding.',
+    tag: 'Default',
+    description: 'Latest multimodal model with adaptive reasoning and live Google Search grounding.',
     isDefault: true,
-  },
-  {
-    id: 'gemini-3.1-flash-lite',
-    name: 'Gemini 3.1 Flash Lite',
-    tag: 'Ultra Fast',
-    description: 'Lightweight model optimized for rapid answers and lowest latency.',
-    isDefault: false,
   },
   {
     id: 'gemini-flash-latest',
     name: 'Gemini Flash Latest',
     tag: 'Balanced',
-    description: 'Production stable Gemini Flash model.',
+    description: 'General-purpose Gemini Flash model for research, writing, and coding.',
+    isDefault: false,
+  },
+  {
+    id: 'gemini-3.1-flash-lite',
+    name: 'Gemini 3.1 Flash Lite',
+    tag: 'Fast',
+    description: 'Lightweight model optimized for ultra-low latency responses.',
     isDefault: false,
   },
 ];
+
+// Normalize model ID (protects against legacy saved values in localStorage)
+function normalizeModelId(requested?: string): string {
+  const validIds = new Set(AVAILABLE_MODELS.map((m) => m.id));
+  if (requested && validIds.has(requested)) {
+    return requested;
+  }
+  return 'gemini-3.8-flash';
+}
+
+function mapThinkingLevel(level?: string): ThinkingLevel {
+  switch ((level || '').toLowerCase()) {
+    case 'low':
+      return ThinkingLevel.LOW;
+    case 'high':
+      return ThinkingLevel.HIGH;
+    default:
+      return ThinkingLevel.MEDIUM;
+  }
+}
+
+function extractDomain(uri: string): string {
+  try {
+    const parsed = new URL(uri);
+    return parsed.hostname.replace(/^www\./, '');
+  } catch {
+    return uri;
+  }
+}
+
+function buildAttachmentParts(attachments: any[]): any[] {
+  const parts: any[] = [];
+  if (!Array.isArray(attachments)) return parts;
+
+  for (const att of attachments) {
+    if (!att) continue;
+    const name = att.name || 'attachment';
+    const mime = (att.type || '').toLowerCase();
+
+    // If decoded text was provided or it's a text/code/json/csv file, decode UTF-8 as readable text context
+    const isTextLike =
+      Boolean(att.textContent) ||
+      mime.startsWith('text/') ||
+      mime === 'application/json' ||
+      mime === 'application/javascript' ||
+      mime === 'application/typescript' ||
+      /\.(txt|md|markdown|json|csv|js|jsx|ts|tsx|py|html|css|scss|sql|xml|yaml|yml|sh|bash|env|log)$/i.test(name);
+
+    if (isTextLike) {
+      let decoded = att.textContent || '';
+      if (!decoded && typeof att.data === 'string') {
+        try {
+          const b64 = att.data.includes(',') ? att.data.split(',')[1] : att.data;
+          decoded = Buffer.from(b64, 'base64').toString('utf-8');
+        } catch {
+          decoded = '';
+        }
+      }
+      if (decoded.trim()) {
+        const truncated = decoded.length > 100000 ? `${decoded.slice(0, 100000)}\n...[truncated]` : decoded;
+        parts.push({
+          text: `[Attached file: ${name}]\n\`\`\`\n${truncated}\n\`\`\``,
+        });
+        continue;
+      }
+    }
+
+    // Binary multimodal inputs supported directly by Gemini (images & PDFs)
+    if (att.data && (mime.startsWith('image/') || mime === 'application/pdf' || mime.startsWith('audio/'))) {
+      const base64Data = att.data.includes(',') ? att.data.split(',')[1] : att.data;
+      parts.push({
+        inlineData: {
+          mimeType: att.type,
+          data: base64Data,
+        },
+      });
+    }
+  }
+  return parts;
+}
+
+function classifyGeminiError(err: any): { message: string; errorType: string } {
+  const msg = String(err?.message || err || '');
+  const status = err?.status || err?.code;
+
+  if (status === 429 || msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED')) {
+    return {
+      errorType: 'rate_limit',
+      message: 'API rate limit reached right now. Please wait a moment and click Retry.',
+    };
+  }
+  if (status === 400 || status === 403 || msg.includes('API_KEY_INVALID') || msg.includes('PERMISSION_DENIED')) {
+    return {
+      errorType: 'auth',
+      message: 'Gemini API authentication error. Please verify the API key in Settings > Secrets.',
+    };
+  }
+  if (msg.toLowerCase().includes('safety') || msg.toLowerCase().includes('blocked')) {
+    return {
+      errorType: 'blocked',
+      message: 'This response was blocked by safety filters. Please rephrase your request and try again.',
+    };
+  }
+  return {
+    errorType: 'network',
+    message: 'Unable to complete the response due to a model or network interruption. Please click Retry.',
+  };
+}
 
 // Health & Model Catalog
 app.get('/api/health', (_req: Request, res: Response) => {
@@ -92,9 +200,33 @@ app.get('/api/models', (_req: Request, res: Response) => {
   res.json({ models: AVAILABLE_MODELS });
 });
 
+app.get('/api/voice/config', (_req: Request, res: Response) => {
+  res.json({
+    voice: {
+      provider: 'Camellia Voice Engine',
+      name: 'Claude AI Female Voice',
+      gender: 'female',
+      preferredLang: 'en-US',
+      rate: 1.0,
+      pitch: 1.04,
+      volume: 1.0,
+      persona: 'Calm, articulate female assistant voice',
+      description: 'On-demand message narration supporting English and Bengali.',
+      priorityVoices: [
+        'Google UK English Female',
+        'Microsoft Sonia Online (Natural) - English (United Kingdom)',
+        'Microsoft Jenny Online (Natural) - English (United States)',
+        'Samantha',
+        'Serena',
+        'Google US English Female',
+      ],
+    },
+  });
+});
+
 // Authentication Endpoints
 app.post('/api/auth/signup', (req: Request, res: Response) => {
-  const { usernameOrEmail, password } = req.body;
+  const { usernameOrEmail, password, passwordConfirm } = req.body;
   const ip = req.ip || req.socket.remoteAddress || 'unknown';
 
   const rateCheck = checkRateLimit(`signup_${ip}`, 10, 60000);
@@ -102,6 +234,13 @@ app.post('/api/auth/signup', (req: Request, res: Response) => {
     return res.status(429).json({
       success: false,
       error: `Too many registration attempts. Please wait ${rateCheck.retryAfter}s.`,
+    });
+  }
+
+  if (passwordConfirm !== undefined && password !== passwordConfirm) {
+    return res.status(400).json({
+      success: false,
+      error: 'Passwords do not match.',
     });
   }
 
@@ -158,42 +297,28 @@ app.post('/api/auth/sync-data', (req: Request, res: Response) => {
     return res.status(401).json({ success: false, error: 'Invalid or expired session' });
   }
 
-  const { notes, themePreference, chatSessionCount, savedChats } = req.body;
-  const updated = updateUserData(user.id, {
-    notes,
-    themePreference,
-    chatSessionCount,
-    savedChats,
-  });
+  const payload = req.body?.savedData && typeof req.body.savedData === 'object' ? req.body.savedData : req.body;
+  const cleanData: Record<string, any> = {};
+  if (payload.notes !== undefined) cleanData.notes = payload.notes;
+  if (payload.themePreference !== undefined) cleanData.themePreference = payload.themePreference;
+  if (payload.chatSessionCount !== undefined) cleanData.chatSessionCount = payload.chatSessionCount;
+  if (payload.savedChats !== undefined) cleanData.savedChats = payload.savedChats;
 
-  return res.json({ success: true, user: updated });
+  updateUserData(user.id, cleanData);
+  const updatedUser = getUserByToken(token);
+
+  return res.json({ success: true, user: updatedUser });
 });
 
 app.post('/api/auth/logout', (req: Request, res: Response) => {
   const authHeader = req.headers.authorization;
-  if (authHeader?.startsWith('Bearer ')) {
-    const token = authHeader.split(' ')[1];
+  const bodyToken = req.body?.token;
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : bodyToken;
+  if (token) {
     revokeSession(token);
   }
   return res.json({ success: true, message: 'Logged out successfully' });
 });
-
-// Helper to stream text smoothly token-by-token
-async function streamTextTokens(res: Response, text: string, isClientConnected: () => boolean, sources: any[] = []) {
-  const tokens = text.split(/(\s+)/);
-  for (let i = 0; i < tokens.length; i++) {
-    if (!isClientConnected()) break;
-    res.write(`data: ${JSON.stringify({ text: tokens[i] })}\n\n`);
-    if (i % 2 === 0) {
-      await new Promise((r) => setTimeout(r, 12));
-    }
-  }
-
-  if (isClientConnected()) {
-    res.write(`data: ${JSON.stringify({ done: true, sources })}\n\n`);
-    res.end();
-  }
-}
 
 // Real-Time Token Streaming Endpoint (Server-Sent Events)
 app.post('/api/chat/stream', async (req: Request, res: Response) => {
@@ -202,6 +327,8 @@ app.post('/api/chat/stream', async (req: Request, res: Response) => {
     history = [],
     attachments = [],
     model = 'gemini-3.8-flash',
+    thinkingLevel = 'medium',
+    webSearchEnabled = true,
     systemInstruction,
     replyLanguage = 'auto',
     language,
@@ -211,10 +338,17 @@ app.post('/api/chat/stream', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Message or attachment is required.' });
   }
 
+  if (!process.env.GEMINI_API_KEY) {
+    return res.status(500).json({
+      error: 'Gemini API key is not configured on the server. Please add it in Settings > Secrets.',
+    });
+  }
+
   // Setup Server-Sent Events headers
   res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders?.();
 
   let isConnected = true;
@@ -224,137 +358,162 @@ app.post('/api/chat/stream', async (req: Request, res: Response) => {
     }
   });
 
+  // System instructions + language guidance
   const targetLang = language || replyLanguage || 'auto';
-  let finalInstruction = (systemInstruction?.trim() || DEFAULT_SYSTEM_INSTRUCTION);
+  let finalInstruction = systemInstruction?.trim() || DEFAULT_SYSTEM_INSTRUCTION;
   if (targetLang === 'bn' || targetLang === 'bengali') {
     finalInstruction += '\nAlways reply in natural, fluent Bengali (বাংলা) unless explicitly asked otherwise.';
   } else if (targetLang === 'en' || targetLang === 'english') {
     finalInstruction += '\nAlways reply in clear, professional English.';
   }
 
-  // Build conversation history contents for Gemini API
+  // Build multi-turn Gemini contents
   const contents: any[] = [];
-
-  // Prior turns
   if (Array.isArray(history)) {
     for (const h of history) {
       const textVal = h.content || h.text || '';
-      if (!textVal && (!h.attachments || h.attachments.length === 0)) continue;
-      const role = h.role === 'assistant' || h.role === 'model' ? 'model' : 'user';
-      const parts: any[] = [];
-
-      if (h.attachments && Array.isArray(h.attachments)) {
-        for (const att of h.attachments) {
-          if (att.data && att.type) {
-            const base64Data = att.data.includes(',') ? att.data.split(',')[1] : att.data;
-            parts.push({
-              inlineData: {
-                mimeType: att.type,
-                data: base64Data,
-              },
-            });
-          }
-        }
-      }
-
+      const attParts = buildAttachmentParts(h.attachments || []);
+      const parts: any[] = [...attParts];
       if (textVal) {
         parts.push({ text: textVal });
       }
-
       if (parts.length > 0) {
+        const role = h.role === 'assistant' || h.role === 'model' ? 'model' : 'user';
         contents.push({ role, parts });
       }
     }
   }
 
-  // Current turn
-  const currentParts: any[] = [];
-  if (Array.isArray(attachments)) {
-    for (const att of attachments) {
-      if (att.data && att.type) {
-        const base64Data = att.data.includes(',') ? att.data.split(',')[1] : att.data;
-        currentParts.push({
-          inlineData: {
-            mimeType: att.type,
-            data: base64Data,
-          },
-        });
-      }
-    }
-  }
+  const currentParts: any[] = [...buildAttachmentParts(attachments)];
   if (message) {
     currentParts.push({ text: message });
   }
   contents.push({ role: 'user', parts: currentParts });
 
-  const chosenModel = model || 'gemini-3.8-flash';
-  const sourcesCollected: Array<{ title: string; url: string }> = [];
+  const primaryModel = normalizeModelId(model);
+  // Ordered attempts: requested model (with search if enabled) -> fallback flash models if rate-limited/unavailable
+  const candidateModels = Array.from(
+    new Set([primaryModel, 'gemini-flash-latest', 'gemini-3.1-flash-lite'])
+  );
 
-  // Step 1: Generate response with primary model (with search grounding if recent info/search is needed)
-  let generatedText = '';
-  const searchKeywords = ['latest', 'news', 'today', 'current', 'price', 'weather', 'who won', 'recent', 'score'];
-  const needsWebSearch = searchKeywords.some((kw) => (message || '').toLowerCase().includes(kw));
+  const ai = getGenAIClient();
+  const sourcesMap = new Map<string, { index: number; title: string; uri: string; domain: string }>();
+  const searchQueriesSet = new Set<string>();
+  let lastError: any = null;
 
-  try {
-    const config: any = { systemInstruction: finalInstruction };
-    if (needsWebSearch) {
+  for (let idx = 0; idx < candidateModels.length; idx++) {
+    if (!isConnected) return;
+
+    const currentModel = candidateModels[idx];
+    const useSearch = Boolean(webSearchEnabled) && currentModel !== 'gemini-3.1-flash-lite';
+
+    const config: any = {
+      systemInstruction: finalInstruction,
+    };
+
+    if (currentModel === 'gemini-3.8-flash') {
+      config.thinkingConfig = {
+        thinkingLevel: mapThinkingLevel(thinkingLevel),
+      };
+    }
+
+    if (useSearch) {
       config.tools = [{ googleSearch: {} }];
     }
 
-    const genPromise = ai.models.generateContent({
-      model: chosenModel,
-      contents,
-      config,
-    });
+    let streamedAnyText = false;
 
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('TIMEOUT_EXCEEDED')), 3500)
-    );
+    try {
+      const stream = await ai.models.generateContentStream({
+        model: currentModel,
+        contents,
+        config,
+      });
 
-    const response: any = await Promise.race([genPromise, timeoutPromise]);
-    generatedText = response.text || '';
+      for await (const chunk of stream) {
+        if (!isConnected) return;
 
-    // Collect search sources if present
-    const metadata = response.candidates?.[0]?.groundingMetadata;
-    if (metadata?.groundingChunks && Array.isArray(metadata.groundingChunks)) {
-      for (const gChunk of metadata.groundingChunks) {
-        const web = (gChunk as any).web;
-        if (web?.uri && !sourcesCollected.some((s) => s.url === web.uri)) {
-          sourcesCollected.push({
-            title: web.title || web.uri,
-            url: web.uri,
-          });
+        // Check block reason
+        const finishReason = chunk.candidates?.[0]?.finishReason;
+        if (finishReason === 'SAFETY' || finishReason === 'PROHIBITED_CONTENT') {
+          throw new Error('BLOCKED_BY_SAFETY');
+        }
+
+        const chunkText = chunk.text;
+        if (chunkText) {
+          streamedAnyText = true;
+          res.write(`data: ${JSON.stringify({ text: chunkText })}\n\n`);
+        }
+
+        const metadata = chunk.candidates?.[0]?.groundingMetadata;
+        if (metadata?.webSearchQueries && Array.isArray(metadata.webSearchQueries)) {
+          for (const q of metadata.webSearchQueries) {
+            if (typeof q === 'string' && q.trim()) {
+              searchQueriesSet.add(q.trim());
+            }
+          }
+        }
+
+        if (metadata?.groundingChunks && Array.isArray(metadata.groundingChunks)) {
+          for (const gChunk of metadata.groundingChunks) {
+            const web = (gChunk as any).web;
+            if (web?.uri && !sourcesMap.has(web.uri)) {
+              sourcesMap.set(web.uri, {
+                index: sourcesMap.size + 1,
+                title: web.title || extractDomain(web.uri),
+                uri: web.uri,
+                domain: extractDomain(web.uri),
+              });
+            }
+          }
         }
       }
+
+      if (streamedAnyText) {
+        if (isConnected) {
+          res.write(
+            `data: ${JSON.stringify({
+              done: true,
+              modelUsed: currentModel,
+              sources: Array.from(sourcesMap.values()),
+              searchQueries: Array.from(searchQueriesSet),
+            })}\n\n`
+          );
+          res.end();
+        }
+        return;
+      }
+    } catch (err: any) {
+      lastError = err;
+      console.warn(`[GEMINI STREAM ${currentModel} ATTEMPT FAILED]`, err?.message || err);
+
+      // If partial text was already streamed before interruption, close cleanly with error note or end
+      if (streamedAnyText) {
+        if (isConnected) {
+          const classified = classifyGeminiError(err);
+          res.write(`data: ${JSON.stringify({ error: classified.message, errorType: classified.errorType })}\n\n`);
+          res.end();
+        }
+        return;
+      }
+
+      // If safety block or invalid auth key, don't retry other models uselessly
+      const classified = classifyGeminiError(err);
+      if (classified.errorType === 'auth' || classified.errorType === 'blocked') {
+        if (isConnected) {
+          res.write(`data: ${JSON.stringify({ error: classified.message, errorType: classified.errorType })}\n\n`);
+          res.end();
+        }
+        return;
+      }
     }
-  } catch (err: any) {
-    console.warn(`[PRIMARY MODEL ${chosenModel} FAILED/TIMED OUT, TRYING FAST LITE MODEL]`, err?.message || err);
   }
 
-  // Step 2: Fallback to gemini-3.1-flash-lite (ultra-fast 800ms response) if primary failed or timed out
-  if (!generatedText && isConnected) {
-    try {
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.1-flash-lite',
-        contents,
-        config: { systemInstruction: finalInstruction },
-      });
-      generatedText = response.text || '';
-    } catch (fbErr: any) {
-      console.warn('[FLASH-LITE FALLBACK FAILED]', fbErr?.message || fbErr);
-    }
-  }
-
-  // Step 3: Stream tokens to client
-  if (generatedText && isConnected) {
-    await streamTextTokens(res, generatedText, () => isConnected, sourcesCollected);
-    return;
-  }
-
-  // Step 4: Graceful notice if completely offline/out of quota
+  // All attempts failed: propagate real structured error to UI so user sees Retry button
   if (isConnected) {
-    const errorMsg = 'Camellia AI is temporarily experiencing high API traffic. Please try sending your message again.';
-    await streamTextTokens(res, errorMsg, () => isConnected, []);
+    const classified = classifyGeminiError(lastError);
+    res.write(`data: ${JSON.stringify({ error: classified.message, errorType: classified.errorType })}\n\n`);
+    res.end();
   }
 });
 

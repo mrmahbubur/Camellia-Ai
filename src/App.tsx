@@ -16,18 +16,32 @@ const SETTINGS_STORAGE_KEY = 'camellia_user_settings';
 const AUTH_USER_KEY = 'camellia_auth_user';
 const AUTH_TOKEN_KEY = 'camellia_auth_token';
 
+function createInitialSession(model?: string): ChatSession {
+  const now = new Date().toISOString();
+  return {
+    id: `session-${Date.now()}`,
+    title: 'New conversation',
+    messages: [],
+    createdAt: now,
+    updatedAt: now,
+    model: model || DEFAULT_USER_SETTINGS.model
+  };
+}
+
 export function App() {
-  // Settings & Theme
   const [settings, setSettings] = useState<UserSettings>(() => {
     try {
       const saved = localStorage.getItem(SETTINGS_STORAGE_KEY);
-      return saved ? { ...DEFAULT_USER_SETTINGS, ...JSON.parse(saved) } : DEFAULT_USER_SETTINGS;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return { ...DEFAULT_USER_SETTINGS, ...parsed };
+      }
     } catch {
-      return DEFAULT_USER_SETTINGS;
+      // ignore storage errors
     }
+    return DEFAULT_USER_SETTINGS;
   });
 
-  // Theme Sync
   useEffect(() => {
     if (settings.theme === 'dark') {
       document.documentElement.classList.add('dark');
@@ -38,7 +52,6 @@ export function App() {
     }
   }, [settings.theme]);
 
-  // Auth User
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => {
     try {
       const saved = localStorage.getItem(AUTH_USER_KEY);
@@ -48,7 +61,6 @@ export function App() {
     }
   });
 
-  // Chat Sessions
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
     try {
       const saved = localStorage.getItem(SESSIONS_STORAGE_KEY);
@@ -56,31 +68,30 @@ export function App() {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
-    } catch {}
-    // Default initial session
-    const initialSession: ChatSession = {
-      id: `session-${Date.now()}`,
-      title: 'New conversation',
-      messages: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    return [initialSession];
+    } catch {
+      // ignore storage errors
+    }
+    return [createInitialSession()];
   });
+
+  const sessionsRef = useRef<ChatSession[]>(sessions);
+  useEffect(() => {
+    sessionsRef.current = sessions;
+  }, [sessions]);
 
   const [activeSessionId, setActiveSessionId] = useState<string>(() => {
     return sessions[0]?.id || `session-${Date.now()}`;
   });
 
-  // UI state
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth >= 768 : true
+  );
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Save sessions to localStorage
   useEffect(() => {
     try {
       localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(sessions));
@@ -89,7 +100,6 @@ export function App() {
     }
   }, [sessions]);
 
-  // Save settings to localStorage
   useEffect(() => {
     try {
       localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
@@ -98,17 +108,50 @@ export function App() {
     }
   }, [settings]);
 
-  // Active session
   const activeSession = sessions.find((s) => s.id === activeSessionId) || sessions[0];
   const activeMessages = activeSession ? activeSession.messages : [];
 
-  // Toggle theme
   const handleToggleTheme = () => {
-    const nextTheme = settings.theme === 'dark' ? 'light' : 'dark';
-    setSettings((prev) => ({ ...prev, theme: nextTheme }));
+    setSettings((prev) => ({
+      ...prev,
+      theme: prev.theme === 'dark' ? 'light' : 'dark'
+    }));
   };
 
-  // Keyboard shortcut listener
+  const handleToggleWebSearch = () => {
+    setSettings((prev) => ({
+      ...prev,
+      webSearchEnabled: !prev.webSearchEnabled
+    }));
+  };
+
+  const handleStopStreaming = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setIsStreaming(false);
+
+    setSessions((prev) =>
+      prev.map((s) => {
+        if (s.id !== activeSessionId) return s;
+        return {
+          ...s,
+          messages: s.messages.map((m) => (m.isStreaming ? { ...m, isStreaming: false } : m))
+        };
+      })
+    );
+  };
+
+  const handleNewChat = () => {
+    if (isStreaming) {
+      handleStopStreaming();
+    }
+    const newSession = createInitialSession(settings.model);
+    setSessions((prev) => [newSession, ...prev]);
+    setActiveSessionId(newSession.id);
+  };
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -122,37 +165,13 @@ export function App() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [sessions]);
+  });
 
-  // Create New Chat
-  const handleNewChat = () => {
-    if (isStreaming) {
-      handleStopStreaming();
-    }
-    const newSession: ChatSession = {
-      id: `session-${Date.now()}`,
-      title: 'New conversation',
-      messages: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      model: settings.model
-    };
-    setSessions((prev) => [newSession, ...prev]);
-    setActiveSessionId(newSession.id);
-  };
-
-  // Delete Session
   const handleDeleteSession = (id: string) => {
     setSessions((prev) => {
       const remaining = prev.filter((s) => s.id !== id);
       if (remaining.length === 0) {
-        const fresh: ChatSession = {
-          id: `session-${Date.now()}`,
-          title: 'New conversation',
-          messages: [],
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
+        const fresh = createInitialSession(settings.model);
         setActiveSessionId(fresh.id);
         return [fresh];
       }
@@ -163,51 +182,92 @@ export function App() {
     });
   };
 
-  // Rename Session
   const handleRenameSession = (id: string, newTitle: string) => {
     setSessions((prev) =>
       prev.map((s) => (s.id === id ? { ...s, title: newTitle, updatedAt: new Date().toISOString() } : s))
     );
   };
 
-  // Auto-generate title from first prompt
-  const generateShortTitle = (text: string): string => {
-    const clean = text.replace(/^[#*>\-\s]+/, '').trim();
-    if (clean.length <= 32) return clean;
+  const generateShortTitle = (text: string, attachments: MessageAttachment[]): string => {
+    const clean = text.replace(/https?:\/\/\S+/g, '').replace(/^[#*>\-\s]+/, '').trim();
+    if (!clean && attachments.length > 0) {
+      return attachments[0].name.slice(0, 32);
+    }
+    if (clean.length <= 36) return clean || 'New conversation';
     const words = clean.split(/\s+/);
     let title = '';
     for (const w of words) {
-      if ((title + ' ' + w).trim().length > 30) break;
+      if ((title + ' ' + w).trim().length > 34) break;
       title = (title + ' ' + w).trim();
     }
-    return title ? `${title}...` : clean.slice(0, 30) + '...';
+    return title ? `${title}...` : clean.slice(0, 34) + '...';
   };
 
-  // Stop Streaming
-  const handleStopStreaming = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
+  const syncChatsToServer = async (overrideSessions?: ChatSession[]): Promise<boolean> => {
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    if (!token) return false;
+
+    const listToSync = overrideSessions || sessionsRef.current;
+
+    try {
+      const res = await fetch('/api/auth/sync-data', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          savedChats: listToSync.slice(0, 30).map((s) => ({
+            id: s.id,
+            title: s.title,
+            createdAt: s.createdAt,
+            updatedAt: s.updatedAt,
+            model: s.model,
+            messages: s.messages.map((m) => ({
+              id: m.id,
+              role: m.role,
+              text: m.text,
+              timestamp: m.timestamp,
+              sources: m.sources,
+              searchQueries: m.searchQueries
+            }))
+          })),
+          chatSessionCount: listToSync.length,
+          themePreference: settings.theme
+        })
+      });
+      return res.ok;
+    } catch {
+      return false;
     }
-    setIsStreaming(false);
-
-    // Update active assistant message isStreaming flag
-    setSessions((prev) =>
-      prev.map((s) => {
-        if (s.id !== activeSessionId) return s;
-        return {
-          ...s,
-          messages: s.messages.map((m) => (m.isStreaming ? { ...m, isStreaming: false } : m))
-        };
-      })
-    );
   };
 
-  // Send message and execute token-by-token stream
-  const handleSendMessage = async (text: string, attachments: MessageAttachment[] = []) => {
+  const handleRestoreChatsFromServer = (serverChats: ChatSession[]) => {
+    if (!Array.isArray(serverChats) || serverChats.length === 0) return;
+    setSessions((prev) => {
+      const existingIds = new Set(prev.map((s) => s.id));
+      const merged = [...prev];
+      for (const sc of serverChats) {
+        if (!existingIds.has(sc.id)) {
+          merged.push(sc);
+        }
+      }
+      merged.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+      return merged;
+    });
+  };
+
+  const handleSendMessage = async (
+    text: string,
+    attachments: MessageAttachment[] = [],
+    overrideBaseMessages?: ChatMessage[]
+  ) => {
     if (isStreaming) {
       handleStopStreaming();
     }
+
+    const baseMessages = overrideBaseMessages !== undefined ? overrideBaseMessages : activeMessages;
+    const targetSessionId = activeSession?.id || activeSessionId;
 
     const userMsgId = `msg-${Date.now()}`;
     const assistantMsgId = `asst-${Date.now() + 1}`;
@@ -228,17 +288,15 @@ export function App() {
       timestamp: new Date().toISOString()
     };
 
-    // Calculate updated messages list
-    const updatedMessages = [...activeMessages, userMessage, assistantPlaceholder];
+    const updatedMessages = [...baseMessages, userMessage, assistantPlaceholder];
+    const isFirstMessage = baseMessages.length === 0;
+    const newTitle = isFirstMessage
+      ? generateShortTitle(text, attachments)
+      : (activeSession?.title || 'New conversation');
 
-    // Determine if title should be auto-generated
-    const isFirstMessage = activeMessages.length === 0;
-    const newTitle = isFirstMessage ? generateShortTitle(text) : (activeSession?.title || 'New conversation');
-
-    // Update session with user message and placeholder assistant message
     setSessions((prev) =>
       prev.map((s) => {
-        if (s.id !== activeSessionId) return s;
+        if (s.id !== targetSessionId) return s;
         return {
           ...s,
           title: newTitle,
@@ -251,11 +309,18 @@ export function App() {
     setIsStreaming(true);
     abortControllerRef.current = new AbortController();
 
-    // Prepare payload history for multi-turn
-    const historyPayload = activeMessages.map((m) => ({
-      role: m.role === 'user' ? 'user' : 'model',
-      text: m.text
-    }));
+    const historyPayload = baseMessages
+      .filter((m) => !m.error && (m.text.trim() || (m.attachments && m.attachments.length > 0)))
+      .map((m) => ({
+        role: m.role === 'user' ? 'user' : 'model',
+        text: m.text,
+        attachments: m.attachments?.map((a) => ({
+          name: a.name,
+          type: a.type,
+          data: a.data,
+          textContent: a.textContent
+        }))
+      }));
 
     try {
       const response = await fetch('/api/chat/stream', {
@@ -266,29 +331,40 @@ export function App() {
           message: text,
           history: historyPayload,
           model: settings.model,
-          temperature: settings.temperature,
+          thinkingLevel: settings.thinkingLevel,
+          webSearchEnabled: settings.webSearchEnabled,
           systemInstruction: settings.systemInstruction,
           language: settings.language,
           attachments: attachments.map((a) => ({
             name: a.name,
             type: a.type,
-            data: a.data
+            data: a.data,
+            textContent: a.textContent
           }))
         })
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: Failed to connect to chat stream`);
+        let serverError = `HTTP ${response.status}: Failed to connect to chat stream`;
+        try {
+          const errJson = await response.json();
+          if (errJson?.error) serverError = errJson.error;
+        } catch {
+          // keep generic HTTP message
+        }
+        throw new Error(serverError);
       }
 
       if (!response.body) {
-        throw new Error('Response body stream is unavailable.');
+        throw new Error('Response stream is unavailable.');
       }
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let streamedText = '';
       let collectedSources: any[] = [];
+      let collectedQueries: string[] = [];
+      let streamErrorMsg = '';
       let buffer = '';
 
       while (true) {
@@ -296,22 +372,27 @@ export function App() {
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n\n');
-        buffer = lines.pop() || '';
+        const events = buffer.split('\n\n');
+        buffer = events.pop() || '';
 
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed.startsWith('data:')) continue;
+        for (const evt of events) {
+          const lines = evt.split('\n');
+          for (const rawLine of lines) {
+            const trimmed = rawLine.trim();
+            if (!trimmed.startsWith('data:')) continue;
 
-          try {
-            const data = JSON.parse(trimmed.replace(/^data:\s*/, ''));
+            let data: any;
+            try {
+              data = JSON.parse(trimmed.replace(/^data:\s*/, ''));
+            } catch {
+              continue;
+            }
 
             if (data.text) {
               streamedText += data.text;
-              // Update live message text
               setSessions((prev) =>
                 prev.map((s) => {
-                  if (s.id !== activeSessionId) return s;
+                  if (s.id !== targetSessionId) return s;
                   return {
                     ...s,
                     messages: s.messages.map((m) =>
@@ -323,24 +404,25 @@ export function App() {
             }
 
             if (data.done) {
-              if (data.sources && Array.isArray(data.sources)) {
-                collectedSources = data.sources;
-              }
+              if (Array.isArray(data.sources)) collectedSources = data.sources;
+              if (Array.isArray(data.searchQueries)) collectedQueries = data.searchQueries;
             }
 
             if (data.error) {
-              throw new Error(data.error);
+              streamErrorMsg = data.error;
             }
-          } catch (parseErr) {
-            // Ignore partial SSE chunk parse errors
           }
         }
       }
 
-      // Mark streaming complete
-      setSessions((prev) =>
-        prev.map((s) => {
-          if (s.id !== activeSessionId) return s;
+      if (streamErrorMsg) {
+        throw new Error(streamErrorMsg);
+      }
+
+      let finalizedSessions: ChatSession[] = [];
+      setSessions((prev) => {
+        finalizedSessions = prev.map((s) => {
+          if (s.id !== targetSessionId) return s;
           return {
             ...s,
             messages: s.messages.map((m) =>
@@ -349,37 +431,37 @@ export function App() {
                     ...m,
                     text: streamedText,
                     isStreaming: false,
-                    sources: collectedSources.length > 0 ? collectedSources : undefined
+                    sources: collectedSources.length > 0 ? collectedSources : undefined,
+                    searchQueries: collectedQueries.length > 0 ? collectedQueries : undefined
                   }
                 : m
             ),
             updatedAt: new Date().toISOString()
           };
-        })
-      );
+        });
+        return finalizedSessions;
+      });
 
-      // Trigger background sync to server if authenticated
-      if (currentUser) {
-        syncChatsToServer();
+      if (currentUser && finalizedSessions.length > 0) {
+        syncChatsToServer(finalizedSessions);
       }
     } catch (err: any) {
       if (err.name === 'AbortError') {
-        console.log('Stream generation aborted by user.');
+        // User intentionally stopped generation
       } else {
-        console.error('Chat stream error:', err);
-        // Mark assistant message as error
+        const readableErr = err?.message || 'An error occurred while generating the response. Please retry.';
         setSessions((prev) =>
           prev.map((s) => {
-            if (s.id !== activeSessionId) return s;
+            if (s.id !== targetSessionId) return s;
             return {
               ...s,
               messages: s.messages.map((m) =>
                 m.id === assistantMsgId
                   ? {
                       ...m,
-                      text: m.text || 'An error occurred while generating the response. Please retry.',
                       isStreaming: false,
-                      error: true
+                      error: true,
+                      errorText: readableErr
                     }
                   : m
               )
@@ -393,11 +475,9 @@ export function App() {
     }
   };
 
-  // Regenerate last assistant reply
   const handleRegenerate = () => {
     if (activeMessages.length < 2) return;
 
-    // Find the last user message
     let lastUserIndex = -1;
     for (let i = activeMessages.length - 1; i >= 0; i--) {
       if (activeMessages[i].role === 'user') {
@@ -409,84 +489,40 @@ export function App() {
     if (lastUserIndex === -1) return;
 
     const userMsg = activeMessages[lastUserIndex];
-    // Trim conversation up to the last user message
     const pruned = activeMessages.slice(0, lastUserIndex);
 
-    setSessions((prev) =>
-      prev.map((s) => (s.id === activeSessionId ? { ...s, messages: pruned } : s))
-    );
-
-    // Resend message with user text & attachments
-    handleSendMessage(userMsg.text, userMsg.attachments || []);
+    handleSendMessage(userMsg.text, userMsg.attachments || [], pruned);
   };
 
-  // Edit previous user message and re-run
   const handleEditMessage = (id: string, newText: string) => {
     const targetIndex = activeMessages.findIndex((m) => m.id === id);
     if (targetIndex === -1) return;
 
     const oldMsg = activeMessages[targetIndex];
-    // Prune everything from targetIndex onwards
     const pruned = activeMessages.slice(0, targetIndex);
 
-    setSessions((prev) =>
-      prev.map((s) => (s.id === activeSessionId ? { ...s, messages: pruned } : s))
-    );
-
-    // Send with new edited text
-    handleSendMessage(newText, oldMsg.attachments || []);
+    handleSendMessage(newText, oldMsg.attachments || [], pruned);
   };
 
-  // Retry last failed response
   const handleRetry = () => {
     handleRegenerate();
   };
 
-  // Sync saved chats to server backend
-  const syncChatsToServer = async (): Promise<boolean> => {
-    const token = localStorage.getItem(AUTH_TOKEN_KEY);
-    if (!token) return false;
-
-    try {
-      const res = await fetch('/api/auth/sync-data', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          savedData: {
-            savedChats: sessions.map((s) => ({
-              id: s.id,
-              title: s.title,
-              messageCount: s.messages.length,
-              updatedAt: s.updatedAt
-            })),
-            chatSessionCount: sessions.length,
-            themePreference: settings.theme
-          }
-        })
-      });
-      return res.ok;
-    } catch {
-      return false;
-    }
-  };
-
-  // Auth Success Handler
   const handleAuthSuccess = (user: AuthUser, token: string) => {
     setCurrentUser(user);
     localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
     localStorage.setItem(AUTH_TOKEN_KEY, token);
   };
 
-  // Logout Handler
   const handleLogout = () => {
     const token = localStorage.getItem(AUTH_TOKEN_KEY);
     if (token) {
       fetch('/api/auth/logout', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
         body: JSON.stringify({ token })
       }).catch(() => {});
     }
@@ -497,7 +533,6 @@ export function App() {
 
   return (
     <div className="flex h-screen h-[100dvh] w-full overflow-hidden bg-white dark:bg-[#0e0e10] text-neutral-900 dark:text-neutral-100 font-sans">
-      {/* Sidebar with conversation history */}
       <Sidebar
         isOpen={isSidebarOpen}
         onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -505,7 +540,6 @@ export function App() {
         activeSessionId={activeSessionId}
         onSelectSession={(id) => {
           setActiveSessionId(id);
-          // On mobile, close sidebar on selection
           if (window.innerWidth < 768) {
             setIsSidebarOpen(false);
           }
@@ -520,11 +554,10 @@ export function App() {
         onToggleTheme={handleToggleTheme}
       />
 
-      {/* Main Chat Interface */}
       <ChatWindow
         messages={activeMessages}
         isStreaming={isStreaming}
-        onSendMessage={handleSendMessage}
+        onSendMessage={(text, atts) => handleSendMessage(text, atts)}
         onStopStreaming={handleStopStreaming}
         onRegenerate={handleRegenerate}
         onEditMessage={handleEditMessage}
@@ -534,6 +567,9 @@ export function App() {
         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
         currentModel={settings.model}
         onSelectModel={(model) => setSettings((prev) => ({ ...prev, model }))}
+        webSearchEnabled={settings.webSearchEnabled}
+        onToggleWebSearch={handleToggleWebSearch}
+        language={settings.language}
         currentUser={currentUser}
         onOpenAuth={() => setIsAuthModalOpen(true)}
         onOpenSettings={() => setIsSettingsOpen(true)}
@@ -541,7 +577,6 @@ export function App() {
         onToggleTheme={handleToggleTheme}
       />
 
-      {/* Settings Modal */}
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
@@ -549,16 +584,17 @@ export function App() {
         onSaveSettings={(newSettings) => setSettings(newSettings)}
       />
 
-      {/* Account System Modal */}
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
         currentUser={currentUser}
         onAuthSuccess={handleAuthSuccess}
         onLogout={handleLogout}
-        onSyncChatsToServer={syncChatsToServer}
+        onSyncChatsToServer={() => syncChatsToServer()}
+        onRestoreChatsFromServer={handleRestoreChatsFromServer}
       />
     </div>
   );
 }
+
 export default App;

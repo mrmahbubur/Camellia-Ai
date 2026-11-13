@@ -4,6 +4,7 @@ export interface MessageAttachment {
   type: string;
   size: number;
   data: string; // Base64 data URL
+  textContent?: string; // Decoded text for code/text files
 }
 
 export interface GroundedSource {
@@ -21,8 +22,10 @@ export interface ChatMessage {
   timestamp: string;
   attachments?: MessageAttachment[];
   sources?: GroundedSource[];
+  searchQueries?: string[];
   isStreaming?: boolean;
   error?: boolean;
+  errorText?: string;
 }
 
 export interface ChatSession {
@@ -36,7 +39,8 @@ export interface ChatSession {
 
 export interface UserSettings {
   model: string;
-  temperature: number;
+  thinkingLevel: 'low' | 'medium' | 'high';
+  webSearchEnabled: boolean;
   systemInstruction: string;
   language: 'auto' | 'en' | 'bn';
   theme: 'dark' | 'light';
@@ -44,7 +48,8 @@ export interface UserSettings {
 
 export const DEFAULT_USER_SETTINGS: UserSettings = {
   model: 'gemini-3.8-flash',
-  temperature: 0.7,
+  thinkingLevel: 'medium',
+  webSearchEnabled: true,
   systemInstruction: '',
   language: 'auto',
   theme: 'dark'
