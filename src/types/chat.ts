@@ -46,6 +46,15 @@ export interface UserSettings {
   theme: 'dark' | 'light';
 }
 
+export const AVAILABLE_MODEL_IDS = ['gemini-4-hydrogen', 'gemini-3.1-flash-lite'] as const;
+
+export function normalizeModelId(requested?: string): string {
+  if (requested && (AVAILABLE_MODEL_IDS as readonly string[]).includes(requested)) {
+    return requested;
+  }
+  return 'gemini-4-hydrogen';
+}
+
 export const DEFAULT_USER_SETTINGS: UserSettings = {
   model: 'gemini-4-hydrogen',
   thinkingLevel: 'medium',

@@ -64,7 +64,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ language, rawCode, children }) =>
         </button>
       </div>
 
-      <div className="p-4 overflow-x-auto text-[#e2e8f0]">
+      <div className="p-4 overflow-x-auto code-scrollbar text-[#e2e8f0]">
         <pre className="m-0 font-mono">
           <code className={language ? `hljs language-${language}` : 'hljs'}>{children}</code>
         </pre>
@@ -78,13 +78,13 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) =
     <div className="chatgpt-markdown text-[14px] sm:text-[15px] leading-relaxed text-neutral-800 dark:text-neutral-200 break-words [overflow-wrap:anywhere] space-y-2.5 w-full min-w-0 max-w-full overflow-hidden">
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
-        rehypePlugins={[rehypeKatex, rehypeHighlight]}
+        rehypePlugins={[rehypeKatex, [rehypeHighlight, { detect: true, ignoreMissing: true }]]}
         components={{
           pre({ children }) {
             return <>{children}</>;
           },
           code({ className, children, node, ...props }) {
-            const match = /language-([\w-]+)/.exec(className || '');
+            const match = /language-([^\s]+)/.exec(className || '');
             const rawCode = extractText(children).replace(/\n$/, '');
             const isMultiline =
               Boolean(match) ||
@@ -161,7 +161,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) =
           },
           table({ children }) {
             return (
-              <div className="overflow-x-auto my-3.5 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xs">
+              <div className="overflow-x-auto code-scrollbar my-3.5 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xs">
                 <table className="min-w-full text-left text-xs sm:text-sm divide-y divide-neutral-200 dark:divide-neutral-800 bg-white dark:bg-[#121216] tabular-nums">
                   {children}
                 </table>

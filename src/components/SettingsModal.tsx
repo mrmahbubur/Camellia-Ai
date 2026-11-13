@@ -81,7 +81,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           <div className="space-y-2">
             <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 flex items-center gap-1.5">
               <Brain className="w-3.5 h-3.5 text-teal-500" />
-              <span>Reasoning Depth (Gemini 3.8 Flash)</span>
+              <span>Reasoning Depth (Gemini 4 Hydrogen)</span>
             </label>
             <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-neutral-100 dark:bg-[#121214] border border-neutral-200 dark:border-[#2a2a30]">
               {(['low', 'medium', 'high'] as const).map((lvl) => (

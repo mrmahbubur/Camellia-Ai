@@ -8,7 +8,8 @@ import {
   ChatSession,
   MessageAttachment,
   UserSettings,
-  DEFAULT_USER_SETTINGS
+  DEFAULT_USER_SETTINGS,
+  normalizeModelId
 } from './types/chat';
 
 const SESSIONS_STORAGE_KEY = 'camellia_chat_sessions';
@@ -17,15 +18,29 @@ const SETTINGS_STORAGE_KEY = 'camellia_user_settings';
 const AUTH_USER_KEY = 'camellia_auth_user';
 const AUTH_TOKEN_KEY = 'camellia_auth_token';
 
+function generateUniqueId(prefix: string): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `${prefix}-${crypto.randomUUID()}`;
+  }
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function toValidIsoTimestamp(value: unknown, fallback: string): string {
+  if (typeof value === 'string' && value.trim() && !Number.isNaN(Date.parse(value))) {
+    return value;
+  }
+  return fallback;
+}
+
 function createInitialSession(model?: string): ChatSession {
   const now = new Date().toISOString();
   return {
-    id: `session-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    id: generateUniqueId('session'),
     title: 'New conversation',
     messages: [],
     createdAt: now,
     updatedAt: now,
-    model: model || DEFAULT_USER_SETTINGS.model
+    model: normalizeModelId(model)
   };
 }
 
@@ -33,12 +48,70 @@ function sanitizeRestoredSessions(raw: unknown): ChatSession[] {
   if (!Array.isArray(raw) || raw.length === 0) {
     return [createInitialSession()];
   }
-  const valid = raw
-    .filter((s): s is ChatSession => Boolean(s && typeof s.id === 'string' && Array.isArray(s.messages)))
-    .map((s) => ({
-      ...s,
-      messages: s.messages.map((m) => (m.isStreaming ? { ...m, isStreaming: false } : m))
-    }));
+
+  const seenSessionIds = new Set<string>();
+  const now = new Date().toISOString();
+  const valid: ChatSession[] = [];
+
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const rawSession = item as Partial<ChatSession>;
+    if (!Array.isArray(rawSession.messages)) continue;
+
+    let sessionId =
+      typeof rawSession.id === 'string' && rawSession.id.trim()
+        ? rawSession.id.trim()
+        : generateUniqueId('session');
+
+    if (seenSessionIds.has(sessionId)) {
+      sessionId = generateUniqueId('session');
+    }
+    seenSessionIds.add(sessionId);
+
+    const seenMessageIds = new Set<string>();
+    const sanitizedMessages: ChatMessage[] = [];
+
+    for (const rawMsg of rawSession.messages) {
+      if (!rawMsg || typeof rawMsg !== 'object') continue;
+      const role = rawMsg.role === 'user' || rawMsg.role === 'assistant' ? rawMsg.role : null;
+      if (!role) continue;
+
+      let msgId =
+        typeof rawMsg.id === 'string' && rawMsg.id.trim()
+          ? rawMsg.id.trim()
+          : generateUniqueId(role === 'user' ? 'msg' : 'asst');
+
+      if (seenMessageIds.has(msgId)) {
+        msgId = generateUniqueId(role === 'user' ? 'msg' : 'asst');
+      }
+      seenMessageIds.add(msgId);
+
+      sanitizedMessages.push({
+        ...rawMsg,
+        id: msgId,
+        role,
+        text: typeof rawMsg.text === 'string' ? rawMsg.text : '',
+        timestamp: toValidIsoTimestamp(rawMsg.timestamp, now),
+        isStreaming: false
+      });
+    }
+
+    const createdAt = toValidIsoTimestamp(rawSession.createdAt, now);
+    const updatedAt = toValidIsoTimestamp(rawSession.updatedAt, createdAt);
+
+    valid.push({
+      id: sessionId,
+      title:
+        typeof rawSession.title === 'string' && rawSession.title.trim()
+          ? rawSession.title.trim()
+          : 'New conversation',
+      messages: sanitizedMessages,
+      createdAt,
+      updatedAt,
+      model: normalizeModelId(rawSession.model)
+    });
+  }
+
   return valid.length > 0 ? valid : [createInitialSession()];
 }
 
@@ -48,7 +121,11 @@ export function App() {
       const saved = localStorage.getItem(SETTINGS_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        return { ...DEFAULT_USER_SETTINGS, ...parsed };
+        return {
+          ...DEFAULT_USER_SETTINGS,
+          ...parsed,
+          model: normalizeModelId(parsed?.model)
+        };
       }
     } catch {
       // ignore storage errors
@@ -273,10 +350,11 @@ export function App() {
 
   const handleRestoreChatsFromServer = (serverChats: ChatSession[]) => {
     if (!Array.isArray(serverChats) || serverChats.length === 0) return;
+    const sanitizedServerChats = sanitizeRestoredSessions(serverChats);
     setSessions((prev) => {
       const existingIds = new Set(prev.map((s) => s.id));
       const merged = [...prev];
-      for (const sc of serverChats) {
+      for (const sc of sanitizedServerChats) {
         if (!existingIds.has(sc.id)) {
           merged.push(sc);
         }
@@ -298,8 +376,8 @@ export function App() {
     const baseMessages = overrideBaseMessages !== undefined ? overrideBaseMessages : activeMessages;
     const targetSessionId = activeSession?.id || activeSessionId;
 
-    const userMsgId = `msg-${Date.now()}`;
-    const assistantMsgId = `asst-${Date.now() + 1}`;
+    const userMsgId = generateUniqueId('msg');
+    const assistantMsgId = generateUniqueId('asst');
 
     const userMessage: ChatMessage = {
       id: userMsgId,
