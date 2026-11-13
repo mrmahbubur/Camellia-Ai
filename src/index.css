@@ -70,19 +70,30 @@ table {
   color: #86efac;
 }
 .hljs-title,
+.hljs-title.function_,
 .hljs-section,
 .hljs-selector-id {
   color: #7dd3fc;
   font-weight: 600;
 }
 .hljs-type,
-.hljs-class .hljs-title {
+.hljs-class .hljs-title,
+.hljs-title.class_ {
   color: #f0abfc;
 }
 .hljs-tag,
 .hljs-name,
-.hljs-attribute {
+.hljs-attribute,
+.hljs-property {
   color: #93c5fd;
+}
+.hljs-params,
+.hljs-variable.language_ {
+  color: #cbd5e1;
+}
+.hljs-operator,
+.hljs-punctuation {
+  color: #94a3b8;
 }
 .hljs-regexp,
 .hljs-link {
@@ -107,6 +118,10 @@ table {
 }
 
 /* Custom scrollbar for sleek modern UI */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(20, 184, 166, 0.28) transparent;
+}
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;

@@ -12,6 +12,7 @@ import {
 } from './types/chat';
 
 const SESSIONS_STORAGE_KEY = 'camellia_chat_sessions';
+const ACTIVE_SESSION_STORAGE_KEY = 'camellia_active_session_id';
 const SETTINGS_STORAGE_KEY = 'camellia_user_settings';
 const AUTH_USER_KEY = 'camellia_auth_user';
 const AUTH_TOKEN_KEY = 'camellia_auth_token';
@@ -19,13 +20,26 @@ const AUTH_TOKEN_KEY = 'camellia_auth_token';
 function createInitialSession(model?: string): ChatSession {
   const now = new Date().toISOString();
   return {
-    id: `session-${Date.now()}`,
+    id: `session-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     title: 'New conversation',
     messages: [],
     createdAt: now,
     updatedAt: now,
     model: model || DEFAULT_USER_SETTINGS.model
   };
+}
+
+function sanitizeRestoredSessions(raw: unknown): ChatSession[] {
+  if (!Array.isArray(raw) || raw.length === 0) {
+    return [createInitialSession()];
+  }
+  const valid = raw
+    .filter((s): s is ChatSession => Boolean(s && typeof s.id === 'string' && Array.isArray(s.messages)))
+    .map((s) => ({
+      ...s,
+      messages: s.messages.map((m) => (m.isStreaming ? { ...m, isStreaming: false } : m))
+    }));
+  return valid.length > 0 ? valid : [createInitialSession()];
 }
 
 export function App() {
@@ -65,13 +79,12 @@ export function App() {
     try {
       const saved = localStorage.getItem(SESSIONS_STORAGE_KEY);
       if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        return sanitizeRestoredSessions(JSON.parse(saved));
       }
     } catch {
       // ignore storage errors
     }
-    return [createInitialSession()];
+    return [createInitialSession(settings.model)];
   });
 
   const sessionsRef = useRef<ChatSession[]>(sessions);
@@ -80,8 +93,24 @@ export function App() {
   }, [sessions]);
 
   const [activeSessionId, setActiveSessionId] = useState<string>(() => {
-    return sessions[0]?.id || `session-${Date.now()}`;
+    try {
+      const savedId = localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
+      if (savedId && sessions.some((s) => s.id === savedId)) {
+        return savedId;
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return sessions[0]?.id || createInitialSession().id;
   });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, activeSessionId);
+    } catch {
+      // ignore storage errors
+    }
+  }, [activeSessionId]);
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth >= 768 : true

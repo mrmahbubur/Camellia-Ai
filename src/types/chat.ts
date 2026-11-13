@@ -47,7 +47,7 @@ export interface UserSettings {
 }
 
 export const DEFAULT_USER_SETTINGS: UserSettings = {
-  model: 'gemini-3.8-flash',
+  model: 'gemini-4-hydrogen',
   thinkingLevel: 'medium',
   webSearchEnabled: true,
   systemInstruction: '',

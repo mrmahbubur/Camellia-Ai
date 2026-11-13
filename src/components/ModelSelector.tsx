@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Sparkles, Zap, Compass, Check } from 'lucide-react';
+import { ChevronDown, Sparkles, Zap, Check } from 'lucide-react';
 
 interface ModelSelectorProps {
   currentModel: string;
@@ -15,18 +15,11 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 
   const models = [
     {
-      id: 'gemini-3.8-flash',
-      name: 'Gemini 3.8 Flash',
+      id: 'gemini-4-hydrogen',
+      name: 'Gemini 4 Hydrogen',
       tag: 'Default · Grounded',
       desc: 'Adaptive reasoning, multimodal input, and live Google Search grounding.',
       icon: Zap
-    },
-    {
-      id: 'gemini-flash-latest',
-      name: 'Gemini Flash Latest',
-      tag: 'Balanced',
-      desc: 'Versatile Flash model for writing, research, and technical tasks.',
-      icon: Compass
     },
     {
       id: 'gemini-3.1-flash-lite',

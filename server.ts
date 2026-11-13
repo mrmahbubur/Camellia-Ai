@@ -56,18 +56,11 @@ Your capabilities:
 // Supported models aligned with @google/genai catalog
 const AVAILABLE_MODELS = [
   {
-    id: 'gemini-3.8-flash',
-    name: 'Gemini 3.8 Flash',
+    id: 'gemini-4-hydrogen',
+    name: 'Gemini 4 Hydrogen',
     tag: 'Default',
-    description: 'Latest multimodal model with adaptive reasoning and live Google Search grounding.',
+    description: 'Latest multimodal Flash model with adaptive reasoning and live Google Search grounding.',
     isDefault: true,
-  },
-  {
-    id: 'gemini-flash-latest',
-    name: 'Gemini Flash Latest',
-    tag: 'Balanced',
-    description: 'General-purpose Gemini Flash model for research, writing, and coding.',
-    isDefault: false,
   },
   {
     id: 'gemini-3.1-flash-lite',
@@ -84,7 +77,7 @@ function normalizeModelId(requested?: string): string {
   if (requested && validIds.has(requested)) {
     return requested;
   }
-  return 'gemini-3.8-flash';
+  return 'gemini-4-hydrogen';
 }
 
 function mapThinkingLevel(level?: string): ThinkingLevel {
@@ -326,7 +319,7 @@ app.post('/api/chat/stream', async (req: Request, res: Response) => {
     message,
     history = [],
     attachments = [],
-    model = 'gemini-3.8-flash',
+    model = 'gemini-4-hydrogen',
     thinkingLevel = 'medium',
     webSearchEnabled = true,
     systemInstruction,
@@ -391,9 +384,9 @@ app.post('/api/chat/stream', async (req: Request, res: Response) => {
   contents.push({ role: 'user', parts: currentParts });
 
   const primaryModel = normalizeModelId(model);
-  // Ordered attempts: requested model (with search if enabled) -> fallback flash models if rate-limited/unavailable
+  // Ordered attempts: requested model -> fallback active Flash/Lite models
   const candidateModels = Array.from(
-    new Set([primaryModel, 'gemini-flash-latest', 'gemini-3.1-flash-lite'])
+    new Set([primaryModel, 'gemini-4-hydrogen', 'gemini-3.1-flash-lite'])
   );
 
   const ai = getGenAIClient();
@@ -411,7 +404,7 @@ app.post('/api/chat/stream', async (req: Request, res: Response) => {
       systemInstruction: finalInstruction,
     };
 
-    if (currentModel === 'gemini-3.8-flash') {
+    if (currentModel === 'gemini-4-hydrogen') {
       config.thinkingConfig = {
         thinkingLevel: mapThinkingLevel(thinkingLevel),
       };
