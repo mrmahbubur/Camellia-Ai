@@ -27,10 +27,31 @@
       window.addEventListener('DOMContentLoaded', function() {
         setTimeout(function() {
           var root = document.getElementById('root');
-          if (root && root.childElementCount === 0) {
-            root.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#0e0e10;color:#f4f4f5;font-family:system-ui,-apple-system,sans-serif;"><div style="max-width:480px;border:1px solid #27272a;background:#16161a;border-radius:16px;padding:24px;line-height:1.6;"><h1 style="margin:0 0 8px;font-size:18px;font-weight:700;">Camellia AI needs a Vite build</h1><p style="margin:0 0 12px;font-size:14px;color:#a1a1aa;">If you deployed the raw <code style="color:#5eead4;">main</code> root branch directly to GitHub Pages, browsers cannot execute uncompiled <code style="color:#5eead4;">.tsx</code> source files.</p><p style="margin:0;font-size:13px;color:#d4d4d8;">In GitHub: open <strong>Settings → Pages</strong> and set <strong>Source</strong> to <strong>GitHub Actions</strong> (using the included <code style="color:#5eead4;">.github/workflows/deploy-pages.yml</code>), or deploy the compiled <code style="color:#5eead4;">dist/</code> output from <code style="color:#5eead4;">npm run build</code>.</p></div></div>';
+          if (!root || root.childElementCount > 0) return;
+
+          var showNotice = function() {
+            root.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#0e0e10;color:#f4f4f5;font-family:system-ui,-apple-system,sans-serif;"><div style="max-width:500px;border:1px solid #27272a;background:#16161a;border-radius:16px;padding:24px;line-height:1.6;"><h1 style="margin:0 0 8px;font-size:18px;font-weight:700;">Camellia AI needs a Vite build</h1><p style="margin:0 0 12px;font-size:14px;color:#a1a1aa;">The browser loaded uncompiled <code style="color:#5eead4;">index.html</code> from the repository root instead of the built <code style="color:#5eead4;">dist/</code> bundle.</p><p style="margin:0 0 10px;font-size:13px;color:#d4d4d8;">To fix this on GitHub Pages:</p><ul style="margin:0;padding-left:18px;font-size:13px;color:#d4d4d8;"><li>Push the latest files including <code style="color:#5eead4;">.github/workflows/deploy-pages.yml</code> and remove any default <code style="color:#5eead4;">static.yml</code> workflow that deploys <code style="color:#5eead4;">.</code> without running <code style="color:#5eead4;">npm run build</code>.</li><li>Or commit the compiled <code style="color:#5eead4;">dist/</code> folder so root deployments can launch <code style="color:#5eead4;">./dist/</code> automatically.</li></ul></div></div>';
+          };
+
+          if (/\/dist(\/|$)/.test(window.location.pathname)) {
+            showNotice();
+            return;
           }
-        }, 1800);
+
+          fetch('./dist/index.html', { cache: 'no-store' })
+            .then(function(res) {
+              if (!res.ok) throw new Error('no-dist');
+              return res.text();
+            })
+            .then(function(html) {
+              if (html && html.indexOf('./assets/') !== -1) {
+                window.location.replace('./dist/' + window.location.search + window.location.hash);
+              } else {
+                showNotice();
+              }
+            })
+            .catch(showNotice);
+        }, 900);
       });
     </script>
     <script type="module" src="./src/main.tsx"></script>
