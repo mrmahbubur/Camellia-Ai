@@ -11,3 +11,5 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     </ErrorBoundary>
   </React.StrictMode>
 );
+
+(window as unknown as { __CAMELLIA_MOUNTED__?: boolean }).__CAMELLIA_MOUNTED__ = true;
