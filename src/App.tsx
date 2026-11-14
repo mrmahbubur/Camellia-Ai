@@ -11,6 +11,7 @@ import {
   DEFAULT_USER_SETTINGS,
   normalizeModelId
 } from './types/chat';
+import { getApiUrl, isJsonResponse } from './utils/api';
 
 const SESSIONS_STORAGE_KEY = 'camellia_chat_sessions';
 const ACTIVE_SESSION_STORAGE_KEY = 'camellia_active_session_id';
@@ -316,7 +317,7 @@ export function App() {
     const listToSync = overrideSessions || sessionsRef.current;
 
     try {
-      const res = await fetch('/api/auth/sync-data', {
+      const res = await fetch(getApiUrl('/api/auth/sync-data'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -430,7 +431,7 @@ export function App() {
       }));
 
     try {
-      const response = await fetch('/api/chat/stream', {
+      const response = await fetch(getApiUrl('/api/chat/stream'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: abortControllerRef.current.signal,
@@ -451,15 +452,24 @@ export function App() {
         })
       });
 
+      const responseType = (response.headers.get('content-type') || '').toLowerCase();
       if (!response.ok) {
         let serverError = `HTTP ${response.status}: Failed to connect to chat stream`;
-        try {
-          const errJson = await response.json();
-          if (errJson?.error) serverError = errJson.error;
-        } catch {
-          // keep generic HTTP message
+        if (isJsonResponse(response)) {
+          try {
+            const errJson = await response.json();
+            if (errJson?.error) serverError = errJson.error;
+          } catch {
+            // keep generic HTTP message
+          }
+        } else if (response.status === 404 || response.status === 405) {
+          serverError = 'Chat backend is unavailable on static hosting. Configure VITE_API_BASE_URL or deploy with the Express server.';
         }
         throw new Error(serverError);
+      }
+
+      if (responseType.includes('text/html')) {
+        throw new Error('Chat backend is unavailable on static hosting. Configure VITE_API_BASE_URL or deploy with the Express server.');
       }
 
       if (!response.body) {
@@ -624,7 +634,7 @@ export function App() {
   const handleLogout = () => {
     const token = localStorage.getItem(AUTH_TOKEN_KEY);
     if (token) {
-      fetch('/api/auth/logout', {
+      fetch(getApiUrl('/api/auth/logout'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

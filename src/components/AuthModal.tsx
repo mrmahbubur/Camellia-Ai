@@ -15,6 +15,7 @@ import {
   Download
 } from 'lucide-react';
 import { ChatSession } from '../types/chat';
+import { getApiUrl, isJsonResponse } from '../utils/api';
 
 export interface AuthUser {
   id: string;
@@ -107,7 +108,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      const endpoint = mode === 'signup' ? '/api/auth/signup' : '/api/auth/login';
+      const endpoint = getApiUrl(mode === 'signup' ? '/api/auth/signup' : '/api/auth/login');
       const payload = mode === 'signup'
         ? { usernameOrEmail: trimmedUser, password, passwordConfirm }
         : { usernameOrEmail: trimmedUser, password };
@@ -117,6 +118,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
+
+      if (!isJsonResponse(res)) {
+        throw new Error('Backend server is unavailable on static hosting. Configure VITE_API_BASE_URL or run the full-stack server.');
+      }
 
       const data = await res.json();
       if (!res.ok || !data.success) {
@@ -140,7 +145,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     if (!token) return;
 
     try {
-      const res = await fetch('/api/auth/sync-data', {
+      const res = await fetch(getApiUrl('/api/auth/sync-data'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -182,9 +187,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setIsSyncing(true);
     setErrorMsg('');
     try {
-      const res = await fetch('/api/auth/me', {
+      const res = await fetch(getApiUrl('/api/auth/me'), {
         headers: { Authorization: `Bearer ${token}` }
       });
+      if (!isJsonResponse(res)) {
+        throw new Error('Backend server is unavailable on static hosting.');
+      }
       const data = await res.json();
       if (res.ok && data.user?.savedData?.savedChats?.length) {
         onRestoreChatsFromServer(data.user.savedData.savedChats);

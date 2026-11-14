@@ -1,3 +1,5 @@
+import { getApiUrl, isJsonResponse } from './api';
+
 export interface VoiceEngineCallbacks {
   onStart?: () => void;
   onEnd?: () => void;
@@ -63,8 +65,8 @@ class VoiceEngine {
 
   public async syncWithBackend(): Promise<void> {
     try {
-      const res = await fetch('/api/voice/config');
-      if (res.ok) {
+      const res = await fetch(getApiUrl('/api/voice/config'));
+      if (res.ok && isJsonResponse(res)) {
         const data = await res.json();
         if (data.voice) {
           this.backendConfig = data.voice;

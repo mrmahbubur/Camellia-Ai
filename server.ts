@@ -158,7 +158,8 @@ function classifyGeminiError(err: any): { message: string; errorType: string } {
   if (status === 429 || msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED')) {
     return {
       errorType: 'rate_limit',
-      message: 'API rate limit reached right now. Please wait a moment and click Retry.',
+      message:
+        'Gemini API quota or rate limit reached. Please wait a moment and click Retry, or add a billing-enabled API key in Settings > Secrets.',
     };
   }
   if (status === 400 || status === 403 || msg.includes('API_KEY_INVALID') || msg.includes('PERMISSION_DENIED')) {
@@ -415,94 +416,112 @@ app.post('/api/chat/stream', async (req: Request, res: Response) => {
     }
 
     let streamedAnyText = false;
+    const maxModelAttempts = currentModel === 'gemini-4-hydrogen' ? 2 : 1;
 
-    try {
-      const stream = await ai.models.generateContentStream({
-        model: currentModel,
-        contents,
-        config,
-      });
+    for (let retryAttempt = 0; retryAttempt < maxModelAttempts; retryAttempt++) {
+      if (!isConnected) return;
+      streamedAnyText = false;
 
-      for await (const chunk of stream) {
-        if (!isConnected) return;
+      try {
+        const stream = await ai.models.generateContentStream({
+          model: currentModel,
+          contents,
+          config,
+        });
 
-        // Check block reason
-        const finishReason = chunk.candidates?.[0]?.finishReason;
-        if (finishReason === 'SAFETY' || finishReason === 'PROHIBITED_CONTENT') {
-          throw new Error('BLOCKED_BY_SAFETY');
-        }
+        for await (const chunk of stream) {
+          if (!isConnected) return;
 
-        const chunkText = chunk.text;
-        if (chunkText) {
-          streamedAnyText = true;
-          res.write(`data: ${JSON.stringify({ text: chunkText })}\n\n`);
-        }
+          // Check block reason
+          const finishReason = chunk.candidates?.[0]?.finishReason;
+          if (finishReason === 'SAFETY' || finishReason === 'PROHIBITED_CONTENT') {
+            throw new Error('BLOCKED_BY_SAFETY');
+          }
 
-        const metadata = chunk.candidates?.[0]?.groundingMetadata;
-        if (metadata?.webSearchQueries && Array.isArray(metadata.webSearchQueries)) {
-          for (const q of metadata.webSearchQueries) {
-            if (typeof q === 'string' && q.trim()) {
-              searchQueriesSet.add(q.trim());
+          const chunkText = chunk.text;
+          if (chunkText) {
+            streamedAnyText = true;
+            res.write(`data: ${JSON.stringify({ text: chunkText })}\n\n`);
+          }
+
+          const metadata = chunk.candidates?.[0]?.groundingMetadata;
+          if (metadata?.webSearchQueries && Array.isArray(metadata.webSearchQueries)) {
+            for (const q of metadata.webSearchQueries) {
+              if (typeof q === 'string' && q.trim()) {
+                searchQueriesSet.add(q.trim());
+              }
+            }
+          }
+
+          if (metadata?.groundingChunks && Array.isArray(metadata.groundingChunks)) {
+            for (const gChunk of metadata.groundingChunks) {
+              const web = (gChunk as any).web;
+              if (web?.uri && !sourcesMap.has(web.uri)) {
+                sourcesMap.set(web.uri, {
+                  index: sourcesMap.size + 1,
+                  title: web.title || extractDomain(web.uri),
+                  uri: web.uri,
+                  domain: extractDomain(web.uri),
+                });
+              }
             }
           }
         }
 
-        if (metadata?.groundingChunks && Array.isArray(metadata.groundingChunks)) {
-          for (const gChunk of metadata.groundingChunks) {
-            const web = (gChunk as any).web;
-            if (web?.uri && !sourcesMap.has(web.uri)) {
-              sourcesMap.set(web.uri, {
-                index: sourcesMap.size + 1,
-                title: web.title || extractDomain(web.uri),
-                uri: web.uri,
-                domain: extractDomain(web.uri),
-              });
-            }
+        if (streamedAnyText) {
+          if (isConnected) {
+            res.write(
+              `data: ${JSON.stringify({
+                done: true,
+                modelUsed: currentModel,
+                sources: Array.from(sourcesMap.values()),
+                searchQueries: Array.from(searchQueriesSet),
+              })}\n\n`
+            );
+            res.end();
           }
+          return;
         }
-      }
+      } catch (err: any) {
+        lastError = err;
+        const classified = classifyGeminiError(err);
 
-      if (streamedAnyText) {
-        if (isConnected) {
-          res.write(
-            `data: ${JSON.stringify({
-              done: true,
-              modelUsed: currentModel,
-              sources: Array.from(sourcesMap.values()),
-              searchQueries: Array.from(searchQueriesSet),
-            })}\n\n`
-          );
-          res.end();
+        // If partial text was already streamed before interruption, close cleanly with error note
+        if (streamedAnyText) {
+          if (isConnected) {
+            res.write(`data: ${JSON.stringify({ error: classified.message, errorType: classified.errorType })}\n\n`);
+            res.end();
+          }
+          return;
         }
-        return;
-      }
-    } catch (err: any) {
-      lastError = err;
-      console.warn(`[GEMINI STREAM ${currentModel} ATTEMPT FAILED]`, err?.message || err);
 
-      // If partial text was already streamed before interruption, close cleanly with error note or end
-      if (streamedAnyText) {
-        if (isConnected) {
-          const classified = classifyGeminiError(err);
-          res.write(`data: ${JSON.stringify({ error: classified.message, errorType: classified.errorType })}\n\n`);
-          res.end();
+        // If safety block or invalid auth key, stop immediately without fallback loops
+        if (classified.errorType === 'auth' || classified.errorType === 'blocked') {
+          if (isConnected) {
+            res.write(`data: ${JSON.stringify({ error: classified.message, errorType: classified.errorType })}\n\n`);
+            res.end();
+          }
+          return;
         }
-        return;
-      }
 
-      // If safety block or invalid auth key, don't retry other models uselessly
-      const classified = classifyGeminiError(err);
-      if (classified.errorType === 'auth' || classified.errorType === 'blocked') {
-        if (isConnected) {
-          res.write(`data: ${JSON.stringify({ error: classified.message, errorType: classified.errorType })}\n\n`);
-          res.end();
+        // Brief jittered backoff on transient 429 before retrying or falling back to next candidate model
+        if (classified.errorType === 'rate_limit' && retryAttempt + 1 < maxModelAttempts) {
+          await new Promise((resolve) => setTimeout(resolve, 650));
+          continue;
         }
-        return;
+
+        console.info(
+          `[GEMINI STREAM] ${currentModel} fallback (${classified.errorType}); trying next candidate if available.`
+        );
+        break;
       }
     }
   }
 
   // All attempts failed: propagate real structured error to UI so user sees Retry button
+  if (lastError) {
+    console.error('[GEMINI STREAM TERMINAL FAILURE]', lastError?.message || lastError);
+  }
   if (isConnected) {
     const classified = classifyGeminiError(lastError);
     res.write(`data: ${JSON.stringify({ error: classified.message, errorType: classified.errorType })}\n\n`);

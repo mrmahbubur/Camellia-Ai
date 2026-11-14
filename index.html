@@ -2,13 +2,13 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/camellia-profile.svg" />
+    <link rel="icon" type="image/svg+xml" href="./camellia-profile.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Camellia AI — Intelligent Assistant</title>
     <meta name="description" content="Production-ready conversational AI assistant powered by Gemini models with real-time web grounding, multimodal support, and seamless streaming." />
     <meta property="og:title" content="Camellia AI — Intelligent Assistant" />
     <meta property="og:description" content="Production-ready conversational AI assistant powered by Gemini models with real-time web grounding, multimodal support, and seamless streaming." />
-    <meta property="og:image" content="/assets/young_sweet_girl_1787078669904-jjixDzch.jpg" />
+    <meta property="og:image" content="./assets/young_sweet_girl_1787078669904-jjixDzch.jpg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -24,7 +24,15 @@
           }
         });
       }
+      window.addEventListener('DOMContentLoaded', function() {
+        setTimeout(function() {
+          var root = document.getElementById('root');
+          if (root && root.childElementCount === 0) {
+            root.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#0e0e10;color:#f4f4f5;font-family:system-ui,-apple-system,sans-serif;"><div style="max-width:480px;border:1px solid #27272a;background:#16161a;border-radius:16px;padding:24px;line-height:1.6;"><h1 style="margin:0 0 8px;font-size:18px;font-weight:700;">Camellia AI needs a Vite build</h1><p style="margin:0 0 12px;font-size:14px;color:#a1a1aa;">If you deployed the raw <code style="color:#5eead4;">main</code> root branch directly to GitHub Pages, browsers cannot execute uncompiled <code style="color:#5eead4;">.tsx</code> source files.</p><p style="margin:0;font-size:13px;color:#d4d4d8;">In GitHub: open <strong>Settings → Pages</strong> and set <strong>Source</strong> to <strong>GitHub Actions</strong> (using the included <code style="color:#5eead4;">.github/workflows/deploy-pages.yml</code>), or deploy the compiled <code style="color:#5eead4;">dist/</code> output from <code style="color:#5eead4;">npm run build</code>.</p></div></div>';
+          }
+        }, 1800);
+      });
     </script>
-    <script type="module" src="/src/main.tsx"></script>
+    <script type="module" src="./src/main.tsx"></script>
   </body>
 </html>
