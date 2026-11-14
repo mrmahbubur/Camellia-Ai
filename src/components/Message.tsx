@@ -9,13 +9,13 @@ import {
   ExternalLink,
   AlertCircle,
   Globe,
-  Sparkles,
   FileText,
   Search
 } from 'lucide-react';
 import { ChatMessage } from '../types/chat';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { voiceEngine } from '../utils/voiceEngine';
+import { CamelliaLogo } from './CamelliaLogo';
 
 interface MessageProps {
   message: ChatMessage;
@@ -95,19 +95,21 @@ export const Message: React.FC<MessageProps> = ({
   return (
     <div
       className={`group py-4 sm:py-6 px-3 sm:px-6 w-full transition-colors ${
-        isUser ? 'bg-transparent' : 'bg-neutral-50/70 dark:bg-[#141417]/70 border-y border-neutral-100 dark:border-[#1f1f24]'
+        isUser
+          ? 'bg-transparent'
+          : 'bg-white/75 dark:bg-[#0E1522]/75 border-y border-slate-200/70 dark:border-white/7'
       }`}
     >
       <div className="max-w-3xl mx-auto flex gap-3 sm:gap-4">
         {/* Avatar */}
         <div className="shrink-0 pt-0.5">
           {isUser ? (
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-neutral-200 dark:bg-[#2b2b30] flex items-center justify-center text-xs font-semibold text-neutral-800 dark:text-neutral-200">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-200 dark:bg-white/10 flex items-center justify-center text-xs font-semibold text-slate-800 dark:text-slate-200">
               U
             </div>
           ) : (
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-teal-500/15 border border-teal-500/30 flex items-center justify-center text-teal-600 dark:text-teal-400">
-              <Sparkles className="w-4 h-4" />
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-teal-500/12 border border-teal-500/30 flex items-center justify-center">
+              <CamelliaLogo size={18} />
             </div>
           )}
         </div>
@@ -321,6 +323,16 @@ export const Message: React.FC<MessageProps> = ({
                           <RotateCcw className="w-3.5 h-3.5" />
                           <span className="text-[11px]">Regenerate</span>
                         </button>
+                      )}
+
+                      {message.modelUsed && (
+                        <span
+                          className="ml-auto text-[11px] text-neutral-400 dark:text-neutral-500 font-medium truncate max-w-[200px]"
+                          title={message.modelIdUsed || message.modelUsed}
+                        >
+                          {message.modelUsed}
+                          {message.providerUsed ? ` · ${message.providerUsed}` : ''}
+                        </span>
                       )}
                     </div>
                   )}

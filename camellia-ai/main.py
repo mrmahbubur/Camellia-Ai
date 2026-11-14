@@ -109,6 +109,30 @@ def voice_config():
     }
 
 
+@app.get("/api/models")
+def public_models():
+    return {
+        "defaultModelId": MODEL,
+        "enforceFreeModelsOnly": False,
+        "freeOnlyApplied": False,
+        "configuredProviders": {"gemini": bool(api_key), "anthropic": False, "openrouter": False},
+        "models": [
+            {
+                "id": MODEL,
+                "provider": "gemini",
+                "name": MODEL,
+                "tag": "Default · Grounded",
+                "description": "Primary Google Gemini model.",
+                "pricingTier": "free",
+                "pricingNote": "Free tier / quota limited",
+                "capabilities": {"streaming": True, "searchGrounding": True, "thinking": True, "multimodal": True},
+                "isDefault": True,
+                "providerConfigured": bool(api_key),
+            }
+        ],
+    }
+
+
 @app.post("/chat")
 def chat(req: ChatRequest):
     if not client:
@@ -160,7 +184,7 @@ def chat_stream(req: ChatRequest):
             for chunk in stream:
                 if getattr(chunk, "text", None):
                     yield f"data: {json.dumps({'text': chunk.text})}\n\n"
-            yield f"data: {json.dumps({'done': True, 'modelUsed': selected_model, 'sources': [], 'searchQueries': []})}\n\n"
+            yield f"data: {json.dumps({'done': True, 'modelUsed': selected_model, 'modelIdUsed': selected_model, 'providerUsed': 'gemini', 'pricingTier': 'free', 'sources': [], 'searchQueries': []})}\n\n"
         except Exception as exc:
             yield f"data: {json.dumps({'error': f'Camellia is temporarily unavailable: {exc}', 'errorType': 'network'})}\n\n"
 

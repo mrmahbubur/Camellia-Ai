@@ -239,10 +239,10 @@ export const Composer: React.FC<ComposerProps> = ({
         }}
         onDragLeave={() => setIsDragging(false)}
         onDrop={handleDrop}
-        className={`relative rounded-2xl bg-neutral-100 dark:bg-[#1a1a1e] border shadow-sm transition-all p-2.5 ${
+        className={`relative rounded-2xl bg-white/90 dark:bg-[#0E1522]/90 backdrop-blur-md border shadow-sm transition-colors p-2.5 ${
           isDragging
             ? 'border-teal-500 ring-2 ring-teal-500/20'
-            : 'border-neutral-300 dark:border-[#2c2c33] focus-within:border-teal-500/60 dark:focus-within:border-teal-500/60'
+            : 'border-slate-200 dark:border-white/12 focus-within:border-teal-500/60 dark:focus-within:border-teal-400/60'
         }`}
       >
         {/* Inline status notice banner */}
@@ -323,8 +323,9 @@ export const Composer: React.FC<ComposerProps> = ({
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="p-2 rounded-xl text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-200/80 dark:hover:bg-[#28282e] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/60"
+              className="min-h-10 min-w-10 flex items-center justify-center rounded-xl text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-200/80 dark:hover:bg-[#28282e] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/60"
               title="Attach image, PDF, or text/code file (max 10MB)"
+              aria-label="Attach image, PDF, or text file"
             >
               <Paperclip className="w-4 h-4" />
             </button>
@@ -332,12 +333,13 @@ export const Composer: React.FC<ComposerProps> = ({
             <button
               type="button"
               onClick={toggleVoice}
-              className={`p-2 rounded-xl transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/60 ${
+              className={`min-h-10 min-w-10 flex items-center justify-center rounded-xl transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/60 ${
                 isListening
                   ? 'bg-rose-500/15 text-rose-500 border border-rose-500/30 animate-pulse'
                   : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-200/80 dark:hover:bg-[#28282e]'
               }`}
               title={isListening ? 'Listening... click to stop' : 'Voice input'}
+              aria-label={isListening ? 'Stop voice dictation' : 'Voice dictation'}
             >
               {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
             </button>
@@ -345,7 +347,7 @@ export const Composer: React.FC<ComposerProps> = ({
             <button
               type="button"
               onClick={onToggleWebSearch}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/60 ${
+              className={`min-h-10 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/60 ${
                 webSearchEnabled
                   ? 'bg-teal-500/15 text-teal-700 dark:text-teal-300 border border-teal-500/30'
                   : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-200/80 dark:hover:bg-[#28282e] border border-transparent'
@@ -388,7 +390,7 @@ export const Composer: React.FC<ComposerProps> = ({
 
       <div className="text-center mt-2">
         <p className="text-[11px] text-neutral-500 dark:text-neutral-400 select-none">
-          Camellia AI can make mistakes. Verify important details and cited sources.
+          AI responses can be inaccurate. Avoid sharing passwords or sensitive information.
         </p>
       </div>
     </div>

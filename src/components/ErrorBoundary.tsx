@@ -39,10 +39,10 @@ export class ErrorBoundary extends React.Component<
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen w-full flex items-center justify-center p-6 bg-[#0e0e10] text-neutral-100 font-sans">
-          <div className="max-w-md w-full rounded-2xl border border-neutral-800 bg-[#16161a] p-6 space-y-4 shadow-xl">
+        <div className="min-h-screen w-full flex items-center justify-center p-6 bg-[#080C14] text-slate-100 font-sans">
+          <div className="max-w-md w-full rounded-2xl border border-white/12 bg-[#0E1522] p-6 space-y-4 shadow-xl">
             <h1 className="text-lg font-bold tracking-tight">Something went wrong</h1>
-            <p className="text-sm text-neutral-400 leading-relaxed">
+            <p className="text-sm text-slate-400 leading-relaxed">
               Camellia AI encountered an unexpected client error ({this.state.message}). You can reload cleanly below.
             </p>
             <div className="flex items-center gap-2 pt-1">
@@ -56,7 +56,7 @@ export class ErrorBoundary extends React.Component<
               <button
                 type="button"
                 onClick={this.handleResetAndReload}
-                className="px-4 py-2 rounded-xl border border-neutral-700 hover:bg-neutral-800 text-neutral-200 text-xs font-medium transition-colors cursor-pointer"
+                className="px-4 py-2 rounded-xl border border-white/12 hover:bg-white/8 text-slate-200 text-xs font-medium transition-colors cursor-pointer"
               >
                 Reset Cache & Reload
               </button>

@@ -1,13 +1,18 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { ChatWindow } from './components/ChatWindow';
 import { SettingsModal } from './components/SettingsModal';
 import { AuthModal, AuthUser } from './components/AuthModal';
+import { AdminModelsModal } from './components/AdminModelsModal';
+import { PaidModelConfirmModal } from './components/PaidModelConfirmModal';
 import {
   ChatMessage,
   ChatSession,
   MessageAttachment,
   UserSettings,
+  ModelCatalogItem,
+  ModelCatalogResponse,
+  ModelProvider,
   DEFAULT_USER_SETTINGS,
   normalizeModelId
 } from './types/chat';
@@ -195,9 +200,108 @@ export function App() {
   );
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isAdminModelsOpen, setIsAdminModelsOpen] = useState(false);
+  const [catalogModels, setCatalogModels] = useState<ModelCatalogItem[]>([]);
+  const [catalogDefaultModelId, setCatalogDefaultModelId] = useState<string>('gemini-4-hydrogen');
+  const [enforceFreeModelsOnly, setEnforceFreeModelsOnly] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [confirmedPaidModels, setConfirmedPaidModels] = useState<string[]>([]);
+  const confirmedPaidModelsRef = useRef<string[]>([]);
+  const [pendingPaidRequest, setPendingPaidRequest] = useState<{
+    text: string;
+    attachments: MessageAttachment[];
+    overrideBaseMessages?: ChatMessage[];
+    modelItem: ModelCatalogItem;
+  } | null>(null);
 
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  const fetchModelCatalogue = useCallback(async () => {
+    try {
+      const qs = settings.freeModelsOnly ? '?freeOnly=1' : '';
+      const res = await fetch(getApiUrl(`/api/models${qs}`));
+      if (!res.ok || !isJsonResponse(res)) return;
+      const data = (await res.json()) as ModelCatalogResponse;
+      setEnforceFreeModelsOnly(Boolean(data?.enforceFreeModelsOnly));
+      if (!Array.isArray(data?.models)) return;
+      setCatalogModels(data.models);
+      if (data.models.length === 0) return;
+      const nextDefault = data.defaultModelId || data.models[0].id;
+      setCatalogDefaultModelId(nextDefault);
+
+      const approvedIds = data.models.map((m) => m.id);
+      setSettings((prev) => {
+        if (approvedIds.includes(prev.model)) return prev;
+        return {
+          ...prev,
+          model: normalizeModelId(prev.model, approvedIds, nextDefault)
+        };
+      });
+    } catch {
+      // keep existing models on network interruption
+    }
+  }, [settings.freeModelsOnly]);
+
+  useEffect(() => {
+    fetchModelCatalogue();
+  }, [fetchModelCatalogue]);
+
+  const handleSessionExpired = useCallback(() => {
+    setCurrentUser(null);
+    try {
+      localStorage.removeItem(AUTH_USER_KEY);
+      localStorage.removeItem(AUTH_TOKEN_KEY);
+    } catch {
+      // ignore storage errors
+    }
+  }, []);
+
+  const handleUserUpdated = useCallback((user: AuthUser) => {
+    setCurrentUser(user);
+    try {
+      localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+    } catch {
+      // ignore storage errors
+    }
+  }, []);
+
+  useEffect(() => {
+    let token: string | null = null;
+    try {
+      token = localStorage.getItem(AUTH_TOKEN_KEY);
+    } catch {
+      return;
+    }
+    if (!token) {
+      if (currentUser) handleSessionExpired();
+      return;
+    }
+
+    let cancelled = false;
+    fetch(getApiUrl('/api/auth/me'), {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(async (res) => {
+        if (cancelled) return;
+        if (res.status === 401) {
+          handleSessionExpired();
+          return;
+        }
+        if (res.ok && isJsonResponse(res)) {
+          const data = await res.json();
+          if (data?.success && data?.user) {
+            handleUserUpdated(data.user);
+          }
+        }
+      })
+      .catch(() => {
+        // Keep cached session offline until next network request
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [handleSessionExpired, handleUserUpdated]);
 
   useEffect(() => {
     try {
@@ -232,6 +336,14 @@ export function App() {
     }));
   };
 
+  const handleToggleFreeOnly = () => {
+    if (enforceFreeModelsOnly) return;
+    setSettings((prev) => ({
+      ...prev,
+      freeModelsOnly: !prev.freeModelsOnly
+    }));
+  };
+
   const handleStopStreaming = () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -254,7 +366,9 @@ export function App() {
     if (isStreaming) {
       handleStopStreaming();
     }
-    const newSession = createInitialSession(settings.model);
+    const approvedIds = catalogModels.length > 0 ? catalogModels.map((m) => m.id) : undefined;
+    const initialModel = normalizeModelId(settings.model, approvedIds, catalogDefaultModelId);
+    const newSession = createInitialSession(initialModel);
     setSessions((prev) => [newSession, ...prev]);
     setActiveSessionId(newSession.id);
   };
@@ -268,6 +382,8 @@ export function App() {
       if (e.key === 'Escape') {
         setIsSettingsOpen(false);
         setIsAuthModalOpen(false);
+        setIsAdminModelsOpen(false);
+        setPendingPaidRequest(null);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -293,6 +409,21 @@ export function App() {
     setSessions((prev) =>
       prev.map((s) => (s.id === id ? { ...s, title: newTitle, updatedAt: new Date().toISOString() } : s))
     );
+  };
+
+  const handleClearAllSessions = () => {
+    if (isStreaming) {
+      handleStopStreaming();
+    }
+    const fresh = createInitialSession(settings.model);
+    setSessions([fresh]);
+    setActiveSessionId(fresh.id);
+    try {
+      localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify([fresh]));
+      localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, fresh.id);
+    } catch {
+      // ignore storage errors
+    }
   };
 
   const generateShortTitle = (text: string, attachments: MessageAttachment[]): string => {
@@ -336,13 +467,27 @@ export function App() {
               text: m.text,
               timestamp: m.timestamp,
               sources: m.sources,
-              searchQueries: m.searchQueries
+              searchQueries: m.searchQueries,
+              modelUsed: m.modelUsed,
+              modelIdUsed: m.modelIdUsed,
+              providerUsed: m.providerUsed
             }))
           })),
           chatSessionCount: listToSync.length,
           themePreference: settings.theme
         })
       });
+      if (res.status === 401) {
+        handleSessionExpired();
+        return false;
+      }
+      if (res.ok && isJsonResponse(res)) {
+        const data = await res.json();
+        if (data?.user) {
+          handleUserUpdated(data.user);
+        }
+        return true;
+      }
       return res.ok;
     } catch {
       return false;
@@ -368,8 +513,25 @@ export function App() {
   const handleSendMessage = async (
     text: string,
     attachments: MessageAttachment[] = [],
-    overrideBaseMessages?: ChatMessage[]
+    overrideBaseMessages?: ChatMessage[],
+    explicitPaidConfirm = false
   ) => {
+    const selectedModelEntry = catalogModels.find((m) => m.id === settings.model);
+    if (
+      selectedModelEntry &&
+      selectedModelEntry.pricingTier !== 'free' &&
+      !explicitPaidConfirm &&
+      !confirmedPaidModelsRef.current.includes(selectedModelEntry.id)
+    ) {
+      setPendingPaidRequest({
+        text,
+        attachments,
+        overrideBaseMessages,
+        modelItem: selectedModelEntry
+      });
+      return;
+    }
+
     if (isStreaming) {
       handleStopStreaming();
     }
@@ -439,6 +601,9 @@ export function App() {
           message: text,
           history: historyPayload,
           model: settings.model,
+          freeOnly: settings.freeModelsOnly || enforceFreeModelsOnly,
+          confirmPaidModel:
+            explicitPaidConfirm || confirmedPaidModelsRef.current.includes(settings.model),
           thinkingLevel: settings.thinkingLevel,
           webSearchEnabled: settings.webSearchEnabled,
           systemInstruction: settings.systemInstruction,
@@ -458,6 +623,41 @@ export function App() {
         if (isJsonResponse(response)) {
           try {
             const errJson = await response.json();
+            if (response.status === 409 && errJson?.requiresPaidConfirmation) {
+              const previousTitle = activeSession?.title || 'New conversation';
+              setSessions((prev) =>
+                prev.map((s) =>
+                  s.id !== targetSessionId
+                    ? s
+                    : { ...s, title: previousTitle, messages: baseMessages }
+                )
+              );
+              const matchedModel: ModelCatalogItem =
+                errJson.model ||
+                selectedModelEntry || {
+                  id: settings.model,
+                  provider: settings.model.startsWith('claude')
+                    ? 'anthropic'
+                    : settings.model.includes('/')
+                      ? 'openrouter'
+                      : 'gemini',
+                  name: settings.model,
+                  tag: 'Paid / Unverified',
+                  description: errJson.error || 'Explicit confirmation is required before sending.',
+                  pricingTier: 'unverified',
+                  pricingNote: 'Paid or price not verified',
+                  capabilities: { streaming: true },
+                  providerConfigured: true,
+                };
+              fetchModelCatalogue();
+              setPendingPaidRequest({
+                text,
+                attachments,
+                overrideBaseMessages,
+                modelItem: matchedModel,
+              });
+              return;
+            }
             if (errJson?.error) serverError = errJson.error;
           } catch {
             // keep generic HTTP message
@@ -481,6 +681,9 @@ export function App() {
       let streamedText = '';
       let collectedSources: any[] = [];
       let collectedQueries: string[] = [];
+      let resolvedModelUsed: string | undefined;
+      let resolvedModelIdUsed: string | undefined;
+      let resolvedProviderUsed: ModelProvider | undefined;
       let streamErrorMsg = '';
       let buffer = '';
 
@@ -523,6 +726,11 @@ export function App() {
             if (data.done) {
               if (Array.isArray(data.sources)) collectedSources = data.sources;
               if (Array.isArray(data.searchQueries)) collectedQueries = data.searchQueries;
+              if (typeof data.modelUsed === 'string') resolvedModelUsed = data.modelUsed;
+              if (typeof data.modelIdUsed === 'string') resolvedModelIdUsed = data.modelIdUsed;
+              if (typeof data.providerUsed === 'string') {
+                resolvedProviderUsed = data.providerUsed as ModelProvider;
+              }
             }
 
             if (data.error) {
@@ -548,6 +756,9 @@ export function App() {
                     ...m,
                     text: streamedText,
                     isStreaming: false,
+                    modelUsed: resolvedModelUsed,
+                    modelIdUsed: resolvedModelIdUsed,
+                    providerUsed: resolvedProviderUsed,
                     sources: collectedSources.length > 0 ? collectedSources : undefined,
                     searchQueries: collectedQueries.length > 0 ? collectedQueries : undefined
                   }
@@ -649,7 +860,7 @@ export function App() {
   };
 
   return (
-    <div className="flex h-screen h-[100dvh] w-full overflow-hidden bg-white dark:bg-[#0e0e10] text-neutral-900 dark:text-neutral-100 font-sans">
+    <div className="flex h-screen h-[100dvh] w-full overflow-hidden bg-[#f8fafc] dark:bg-[#080C14] text-slate-900 dark:text-slate-100 font-sans">
       <Sidebar
         isOpen={isSidebarOpen}
         onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -664,6 +875,7 @@ export function App() {
         onNewChat={handleNewChat}
         onDeleteSession={handleDeleteSession}
         onRenameSession={handleRenameSession}
+        onClearAllSessions={handleClearAllSessions}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenAuth={() => setIsAuthModalOpen(true)}
         currentUser={currentUser}
@@ -682,14 +894,21 @@ export function App() {
         onSelectPrompt={(prompt) => handleSendMessage(prompt, [])}
         isSidebarOpen={isSidebarOpen}
         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+        models={catalogModels}
         currentModel={settings.model}
         onSelectModel={(model) => setSettings((prev) => ({ ...prev, model }))}
+        freeOnly={settings.freeModelsOnly}
+        enforceFreeModelsOnly={enforceFreeModelsOnly}
+        onToggleFreeOnly={handleToggleFreeOnly}
         webSearchEnabled={settings.webSearchEnabled}
         onToggleWebSearch={handleToggleWebSearch}
         language={settings.language}
         currentUser={currentUser}
         onOpenAuth={() => setIsAuthModalOpen(true)}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenAdminModels={
+          currentUser?.role === 'admin' ? () => setIsAdminModelsOpen(true) : undefined
+        }
         theme={settings.theme}
         onToggleTheme={handleToggleTheme}
       />
@@ -698,6 +917,7 @@ export function App() {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         settings={settings}
+        enforceFreeModelsOnly={enforceFreeModelsOnly}
         onSaveSettings={(newSettings) => setSettings(newSettings)}
       />
 
@@ -706,9 +926,46 @@ export function App() {
         onClose={() => setIsAuthModalOpen(false)}
         currentUser={currentUser}
         onAuthSuccess={handleAuthSuccess}
+        onUserUpdated={handleUserUpdated}
+        onSessionExpired={handleSessionExpired}
         onLogout={handleLogout}
         onSyncChatsToServer={() => syncChatsToServer()}
         onRestoreChatsFromServer={handleRestoreChatsFromServer}
+        onOpenAdminModels={
+          currentUser?.role === 'admin' ? () => setIsAdminModelsOpen(true) : undefined
+        }
+      />
+
+      <AdminModelsModal
+        isOpen={isAdminModelsOpen}
+        onClose={() => setIsAdminModelsOpen(false)}
+        onCatalogueUpdated={fetchModelCatalogue}
+      />
+
+      <PaidModelConfirmModal
+        isOpen={Boolean(pendingPaidRequest)}
+        model={pendingPaidRequest?.modelItem || null}
+        onCancel={() => setPendingPaidRequest(null)}
+        onSwitchToFree={
+          catalogModels.some((m) => m.pricingTier === 'free')
+            ? () => {
+                const freeModel = catalogModels.find((m) => m.pricingTier === 'free');
+                if (freeModel) {
+                  setSettings((prev) => ({ ...prev, model: freeModel.id }));
+                }
+                setPendingPaidRequest(null);
+              }
+            : undefined
+        }
+        onConfirm={() => {
+          if (!pendingPaidRequest) return;
+          const req = pendingPaidRequest;
+          const next = Array.from(new Set([...confirmedPaidModels, req.modelItem.id]));
+          confirmedPaidModelsRef.current = next;
+          setConfirmedPaidModels(next);
+          setPendingPaidRequest(null);
+          handleSendMessage(req.text, req.attachments, req.overrideBaseMessages, true);
+        }}
       />
     </div>
   );

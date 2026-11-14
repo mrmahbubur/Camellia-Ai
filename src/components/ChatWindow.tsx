@@ -1,7 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import {
   PanelLeft,
-  Sparkles,
   Code2,
   Compass,
   Calculator,
@@ -10,13 +9,15 @@ import {
   Settings,
   Moon,
   Sun,
-  ArrowDown
+  ArrowDown,
+  SlidersHorizontal
 } from 'lucide-react';
-import { ChatMessage, MessageAttachment } from '../types/chat';
+import { ChatMessage, MessageAttachment, ModelCatalogItem } from '../types/chat';
 import { Message } from './Message';
 import { Composer } from './Composer';
 import { ModelSelector } from './ModelSelector';
 import { AuthUser } from './AuthModal';
+import { CamelliaLogo } from './CamelliaLogo';
 
 interface ChatWindowProps {
   messages: ChatMessage[];
@@ -29,14 +30,19 @@ interface ChatWindowProps {
   onSelectPrompt: (prompt: string) => void;
   isSidebarOpen: boolean;
   onToggleSidebar: () => void;
+  models: ModelCatalogItem[];
   currentModel: string;
   onSelectModel: (model: string) => void;
+  freeOnly: boolean;
+  enforceFreeModelsOnly?: boolean;
+  onToggleFreeOnly: () => void;
   webSearchEnabled: boolean;
   onToggleWebSearch: () => void;
   language: 'auto' | 'en' | 'bn';
   currentUser: AuthUser | null;
   onOpenAuth: () => void;
   onOpenSettings: () => void;
+  onOpenAdminModels?: () => void;
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
 }
@@ -52,14 +58,19 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onSelectPrompt,
   isSidebarOpen,
   onToggleSidebar,
+  models,
   currentModel,
   onSelectModel,
+  freeOnly,
+  enforceFreeModelsOnly = false,
+  onToggleFreeOnly,
   webSearchEnabled,
   onToggleWebSearch,
   language,
   currentUser,
   onOpenAuth,
   onOpenSettings,
+  onOpenAdminModels,
   theme,
   onToggleTheme
 }) => {
@@ -121,39 +132,67 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   ];
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-white dark:bg-[#0e0e10] text-neutral-900 dark:text-neutral-100 min-w-0 relative">
+    <div className="flex-1 flex flex-col h-full camellia-garden-bg text-slate-900 dark:text-slate-100 min-w-0 relative">
       {/* Top Header Bar */}
-      <header className="h-14 border-b border-neutral-200 dark:border-[#202026] px-3 sm:px-4 flex items-center justify-between shrink-0 bg-white/90 dark:bg-[#0e0e10]/90 backdrop-blur-md z-20">
+      <header className="h-14 border-b border-slate-200 dark:border-white/8 px-3 sm:px-5 flex items-center justify-between gap-2 shrink-0 bg-white/80 dark:bg-[#080C14]/85 backdrop-blur-md z-20">
         <div className="flex items-center gap-2 min-w-0">
           <button
             type="button"
             onClick={onToggleSidebar}
-            className="p-2 rounded-xl hover:bg-neutral-100 dark:hover:bg-[#1a1a1e] text-neutral-500 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer shrink-0"
+            className="min-h-10 min-w-10 flex items-center justify-center rounded-xl hover:bg-slate-200/70 dark:hover:bg-white/8 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/60"
             title={isSidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
+            aria-label={isSidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
           >
             <PanelLeft className="w-4 h-4" />
           </button>
 
           {!isSidebarOpen && (
-            <span className="hidden sm:inline-block font-semibold text-sm tracking-tight font-['Outfit'] text-neutral-900 dark:text-white whitespace-nowrap shrink-0 mr-1">
-              Camellia <span className="text-teal-600 dark:text-teal-400">AI</span>
-            </span>
+            <div className="hidden sm:flex items-center gap-2 whitespace-nowrap shrink-0 mr-1">
+              <CamelliaLogo size={20} />
+              <span className="font-semibold text-sm tracking-tight font-['Outfit'] text-slate-900 dark:text-white">
+                Camellia AI
+              </span>
+              <span className="hidden lg:inline text-xs text-slate-500 dark:text-slate-400">
+                · Assistant of M R S
+              </span>
+            </div>
           )}
 
-          <ModelSelector currentModel={currentModel} onSelectModel={onSelectModel} />
+          <ModelSelector
+            models={models}
+            currentModel={currentModel}
+            onSelectModel={onSelectModel}
+            freeOnly={freeOnly}
+            enforceFreeModelsOnly={enforceFreeModelsOnly}
+            onToggleFreeOnly={onToggleFreeOnly}
+            isAdmin={currentUser?.role === 'admin'}
+            onOpenAdminModels={onOpenAdminModels}
+          />
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1 shrink-0">
+          {currentUser?.role === 'admin' && onOpenAdminModels && (
+            <button
+              type="button"
+              onClick={onOpenAdminModels}
+              className="min-h-10 min-w-10 flex items-center justify-center rounded-xl hover:bg-slate-200/70 dark:hover:bg-white/8 text-teal-600 dark:text-teal-400 transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/60"
+              title="Manage Model Catalogue (Admin)"
+              aria-label="Manage Model Catalogue (Admin)"
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+            </button>
+          )}
+
           <button
             type="button"
             onClick={onOpenAuth}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl hover:bg-neutral-100 dark:hover:bg-[#1a1a1e] text-neutral-600 dark:text-neutral-300 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+            className="min-h-10 flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl hover:bg-slate-200/70 dark:hover:bg-white/8 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/60"
             title={currentUser ? `Account: ${currentUser.username}` : 'Log in / Sign up'}
           >
             <div className="w-6 h-6 rounded-full bg-teal-500/15 border border-teal-500/30 flex items-center justify-center text-teal-600 dark:text-teal-400 shrink-0">
               <User className="w-3.5 h-3.5" />
             </div>
-            <span className="hidden sm:inline-block text-xs font-medium max-w-[120px] truncate">
+            <span className="hidden sm:inline-block text-xs font-medium max-w-[110px] truncate">
               {currentUser ? currentUser.username : 'Log in'}
             </span>
           </button>
@@ -161,8 +200,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           <button
             type="button"
             onClick={onToggleTheme}
-            className="p-2 rounded-xl hover:bg-neutral-100 dark:hover:bg-[#1a1a1e] text-neutral-500 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer shrink-0"
+            className="min-h-10 min-w-10 flex items-center justify-center rounded-xl hover:bg-slate-200/70 dark:hover:bg-white/8 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/60"
             title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
           >
             {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
           </button>
@@ -170,8 +210,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           <button
             type="button"
             onClick={onOpenSettings}
-            className="p-2 rounded-xl hover:bg-neutral-100 dark:hover:bg-[#1a1a1e] text-neutral-500 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer shrink-0"
+            className="min-h-10 min-w-10 flex items-center justify-center rounded-xl hover:bg-slate-200/70 dark:hover:bg-white/8 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/60"
             title="Settings"
+            aria-label="Settings"
           >
             <Settings className="w-4 h-4" />
           </button>
@@ -187,13 +228,18 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         {messages.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center px-4 py-8 max-w-2xl mx-auto w-full text-center my-auto">
             <div className="space-y-3 mb-8">
-              <div className="w-12 h-12 rounded-2xl bg-teal-500/15 border border-teal-500/30 flex items-center justify-center text-teal-600 dark:text-teal-400 mx-auto">
-                <Sparkles className="w-6 h-6" />
+              <div className="w-14 h-14 rounded-2xl bg-white/80 dark:bg-[#0E1522]/90 border border-slate-200 dark:border-white/12 flex items-center justify-center mx-auto shadow-xs">
+                <CamelliaLogo size={36} />
               </div>
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight font-['Outfit'] text-balance">
-                How can I help you today?
-              </h1>
-              <p className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 max-w-md mx-auto leading-relaxed">
+              <div className="space-y-1">
+                <div className="text-xs font-medium text-teal-700 dark:text-teal-400">
+                  Camellia AI · Assistant of M R S
+                </div>
+                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight font-['Outfit'] text-balance text-slate-900 dark:text-white">
+                  How can I help you today?
+                </h1>
+              </div>
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
                 Ask any question, search the live web with citations, write code, solve math, or upload documents and images.
               </p>
             </div>
@@ -206,17 +252,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     type="button"
                     key={idx}
                     onClick={() => onSelectPrompt(card.prompt)}
-                    className="p-4 rounded-2xl bg-neutral-50 dark:bg-[#141418] hover:bg-neutral-100 dark:hover:bg-[#1c1c22] border border-neutral-200 dark:border-[#24242a] hover:border-teal-500/40 transition-all text-left group cursor-pointer"
+                    className="p-4 rounded-2xl bg-white/85 dark:bg-[#0E1522]/80 backdrop-blur-xs hover:bg-white dark:hover:bg-[#131D2F] border border-slate-200 dark:border-white/10 hover:border-teal-500/40 transition-colors text-left group cursor-pointer"
                   >
                     <div className="flex items-center gap-2 mb-1">
-                      <div className="p-1.5 rounded-lg bg-neutral-200/70 dark:bg-[#202026] text-neutral-600 dark:text-neutral-300 group-hover:text-teal-500 transition-colors">
+                      <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-white/6 text-slate-600 dark:text-slate-300 group-hover:text-teal-500 transition-colors">
                         <Icon className="w-3.5 h-3.5" />
                       </div>
-                      <span className="font-semibold text-xs sm:text-sm text-neutral-800 dark:text-neutral-200 group-hover:text-neutral-900 dark:group-hover:text-white transition-colors">
+                      <span className="font-semibold text-xs sm:text-sm text-slate-800 dark:text-slate-100 group-hover:text-slate-950 dark:group-hover:text-white transition-colors">
                         {card.title}
                       </span>
                     </div>
-                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed pl-7">
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed pl-7">
                       {card.subtitle}
                     </p>
                   </button>
@@ -246,14 +292,14 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           type="button"
           onClick={scrollToBottom}
           aria-label="Scroll to bottom"
-          className="absolute bottom-32 right-5 z-20 p-2 rounded-full bg-white dark:bg-[#1e1e24] border border-neutral-200 dark:border-[#2e2e36] shadow-lg text-neutral-600 dark:text-neutral-300 hover:text-teal-500 transition-all cursor-pointer"
+          className="absolute bottom-32 right-5 z-20 p-2.5 rounded-full bg-white dark:bg-[#0E1522] border border-slate-200 dark:border-white/12 shadow-lg text-slate-600 dark:text-slate-300 hover:text-teal-500 transition-colors cursor-pointer"
         >
           <ArrowDown className="w-4 h-4" />
         </button>
       )}
 
       {/* Sticky Bottom Composer */}
-      <div className="shrink-0 bg-gradient-to-t from-white via-white dark:from-[#0e0e10] dark:via-[#0e0e10] to-transparent pt-3 z-10">
+      <div className="shrink-0 bg-gradient-to-t from-[#f8fafc] via-[#f8fafc]/95 dark:from-[#080C14] dark:via-[#080C14]/95 to-transparent pt-3 z-10">
         <Composer
           onSendMessage={onSendMessage}
           isStreaming={isStreaming}

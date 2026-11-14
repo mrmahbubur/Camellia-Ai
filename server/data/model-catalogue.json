@@ -1,0 +1,76 @@
+{
+  "defaultModelId": "gemini-4-hydrogen",
+  "fallbackModelId": "gemini-3.1-flash-lite",
+  "enforceFreeModelsOnly": false,
+  "maxOutputTokens": 8192,
+  "dailySpendCapUsd": 5,
+  "estimatedSpendTodayUsd": 0,
+  "spendDate": "2026-11-14",
+  "lastRefreshedAt": "2026-11-14T11:09:37.650Z",
+  "models": [
+    {
+      "id": "gemini-4-hydrogen",
+      "provider": "gemini",
+      "name": "Gemini 4 Hydrogen",
+      "tag": "Default · Grounded",
+      "description": "Latest multimodal Flash model with adaptive reasoning and live Google Search grounding.",
+      "pricingTier": "free",
+      "pricingNote": "Free tier / quota limited",
+      "status": "approved",
+      "capabilities": {
+        "streaming": true,
+        "searchGrounding": true,
+        "thinking": true,
+        "multimodal": true
+      }
+    },
+    {
+      "id": "gemini-3.1-flash-lite",
+      "provider": "gemini",
+      "name": "Gemini 3.1 Flash Lite",
+      "tag": "Fast",
+      "description": "Lightweight model optimized for ultra-low latency responses.",
+      "pricingTier": "free",
+      "pricingNote": "Free tier / lightweight quota",
+      "status": "approved",
+      "capabilities": {
+        "streaming": true,
+        "searchGrounding": false,
+        "thinking": false,
+        "multimodal": true
+      }
+    },
+    {
+      "id": "claude-fable-5-2",
+      "provider": "anthropic",
+      "name": "Claude Fable 5.2",
+      "tag": "Anthropic · Paid",
+      "description": "Anthropic Claude Fable 5.2 for nuanced writing, analysis, and reasoning (requires ANTHROPIC_API_KEY & admin approval).",
+      "pricingTier": "paid",
+      "pricingNote": "Paid ($8/M input · $40/M output est.)",
+      "status": "needs_review",
+      "capabilities": {
+        "streaming": true,
+        "searchGrounding": false,
+        "thinking": false,
+        "multimodal": true
+      }
+    },
+    {
+      "id": "openrouter/free",
+      "provider": "openrouter",
+      "name": "OpenRouter Free Router",
+      "tag": "OpenRouter · Free",
+      "description": "Dynamic free-model router via OpenRouter (requires OPENROUTER_API_KEY & admin approval).",
+      "pricingTier": "free",
+      "pricingNote": "Free router (availability & latency vary)",
+      "status": "needs_review",
+      "capabilities": {
+        "streaming": true,
+        "searchGrounding": false,
+        "thinking": false,
+        "multimodal": false
+      }
+    }
+  ]
+}

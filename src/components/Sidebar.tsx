@@ -11,11 +11,11 @@ import {
   Moon,
   Sun,
   User,
-  PanelLeftClose,
-  Sparkles
+  PanelLeftClose
 } from 'lucide-react';
 import { ChatSession } from '../types/chat';
 import { AuthUser } from './AuthModal';
+import { CamelliaLogo } from './CamelliaLogo';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -26,6 +26,7 @@ interface SidebarProps {
   onNewChat: () => void;
   onDeleteSession: (id: string) => void;
   onRenameSession: (id: string, newTitle: string) => void;
+  onClearAllSessions: () => void;
   onOpenSettings: () => void;
   onOpenAuth: () => void;
   currentUser: AuthUser | null;
@@ -42,6 +43,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onNewChat,
   onDeleteSession,
   onRenameSession,
+  onClearAllSessions,
   onOpenSettings,
   onOpenAuth,
   currentUser,
@@ -51,6 +53,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
+  const [confirmClearAll, setConfirmClearAll] = useState(false);
 
   const filteredSessions = sessions.filter((s) =>
     s.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -200,27 +203,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
       )}
 
       <aside
-        className={`fixed md:static inset-y-0 left-0 z-40 w-64 sm:w-72 flex flex-col bg-neutral-50 dark:bg-[#111114] border-r border-neutral-200 dark:border-[#202026] transition-transform duration-300 ease-in-out shrink-0 select-none ${
+        className={`fixed md:static inset-y-0 left-0 z-40 w-64 sm:w-72 flex flex-col bg-white/95 dark:bg-[#0B111C]/95 backdrop-blur-md border-r border-slate-200 dark:border-white/8 transition-transform duration-200 ease-out shrink-0 select-none ${
           isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0 md:w-0 md:opacity-0 md:overflow-hidden md:border-none'
         }`}
       >
         {/* Top Header & New Chat */}
-        <div className="p-3.5 space-y-3 border-b border-neutral-200 dark:border-[#202026]">
+        <div className="p-3.5 space-y-3 border-b border-slate-200 dark:border-white/8">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-teal-500/15 border border-teal-500/30 flex items-center justify-center text-teal-600 dark:text-teal-400 font-bold">
-                <Sparkles className="w-4 h-4" />
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-teal-500/10 border border-teal-500/25 flex items-center justify-center shrink-0">
+                <CamelliaLogo size={20} />
               </div>
-              <span className="font-semibold text-neutral-900 dark:text-white text-sm tracking-tight font-['Outfit'] whitespace-nowrap">
-                Camellia <span className="text-teal-600 dark:text-teal-400">AI</span>
-              </span>
+              <div className="min-w-0">
+                <span className="font-semibold text-slate-900 dark:text-white text-sm tracking-tight font-['Outfit'] whitespace-nowrap block">
+                  Camellia <span className="text-teal-600 dark:text-teal-400">AI</span>
+                </span>
+                <span className="text-[10.5px] text-slate-500 dark:text-slate-400 whitespace-nowrap block truncate">
+                  Assistant of M R S
+                </span>
+              </div>
             </div>
 
             <button
               type="button"
               onClick={onToggle}
-              className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 dark:hover:text-white hover:bg-neutral-200 dark:hover:bg-[#1e1e22] transition-colors md:hidden cursor-pointer"
+              className="p-2 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-white/10 transition-colors md:hidden cursor-pointer"
               title="Close sidebar"
+              aria-label="Close sidebar"
             >
               <PanelLeftClose className="w-4 h-4" />
             </button>
@@ -275,6 +284,41 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {renderGroup('Previous 7 Days', pastWeekSessions)}
               {renderGroup('Older', olderSessions)}
             </>
+          )}
+        </div>
+
+        {/* Device History Notice & Clear Control */}
+        <div className="px-3.5 py-2 border-t border-neutral-200 dark:border-[#202026] flex items-center justify-between gap-2 text-[11px] text-neutral-500 dark:text-neutral-400">
+          <span className="truncate">History is stored on this device</span>
+          {confirmClearAll ? (
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  onClearAllSessions();
+                  setConfirmClearAll(false);
+                }}
+                className="text-rose-500 hover:text-rose-400 font-semibold cursor-pointer"
+              >
+                Confirm
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmClearAll(false)}
+                className="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirmClearAll(true)}
+              className="text-neutral-500 hover:text-rose-500 font-medium transition-colors cursor-pointer shrink-0"
+              title="Clear all saved conversations on this device"
+            >
+              Clear
+            </button>
           )}
         </div>
 
