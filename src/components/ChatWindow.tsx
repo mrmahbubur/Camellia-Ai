@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, Suspense, lazy } from 'react';
 import {
   PanelLeft,
   Code2,
@@ -18,6 +18,8 @@ import { Composer } from './Composer';
 import { ModelSelector } from './ModelSelector';
 import { AuthUser } from './AuthModal';
 import { CamelliaLogo } from './CamelliaLogo';
+
+const LazyCamellia3DScene = lazy(() => import('./Camellia3DScene'));
 
 interface ChatWindowProps {
   messages: ChatMessage[];
@@ -45,6 +47,7 @@ interface ChatWindowProps {
   onOpenAdminModels?: () => void;
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
+  is3DView: boolean;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -72,7 +75,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onOpenSettings,
   onOpenAdminModels,
   theme,
-  onToggleTheme
+  onToggleTheme,
+  is3DView
 }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
@@ -132,9 +136,26 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   ];
 
   return (
-    <div className="flex-1 flex flex-col h-full camellia-garden-bg text-slate-900 dark:text-slate-100 min-w-0 relative">
+    <div
+      className={`flex-1 flex flex-col h-full text-slate-900 dark:text-slate-100 min-w-0 relative ${
+        is3DView ? 'bg-[#eaf1f7] dark:bg-[#080C14]' : 'camellia-garden-bg'
+      }`}
+    >
+      {/* Dynamic Three.js 3D Room Canvas Behind Chat Interface */}
+      {is3DView && (
+        <Suspense fallback={null}>
+          <LazyCamellia3DScene theme={theme} isStreaming={isStreaming} />
+        </Suspense>
+      )}
+
       {/* Top Header Bar */}
-      <header className="h-14 border-b border-slate-200 dark:border-white/8 px-3 sm:px-5 flex items-center justify-between gap-2 shrink-0 bg-white/80 dark:bg-[#080C14]/85 backdrop-blur-md z-20">
+      <header
+        className={`h-14 border-b border-slate-200 dark:border-white/8 px-3 sm:px-5 flex items-center justify-between gap-2 shrink-0 z-20 ${
+          is3DView
+            ? 'bg-white/92 dark:bg-[#080C14]/92'
+            : 'bg-white/80 dark:bg-[#080C14]/85 backdrop-blur-md'
+        }`}
+      >
         <div className="flex items-center gap-2 min-w-0">
           <button
             type="button"
@@ -223,12 +244,18 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto min-h-0 flex flex-col relative"
+        className="flex-1 overflow-y-auto min-h-0 flex flex-col relative z-10"
       >
         {messages.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center px-4 py-8 max-w-2xl mx-auto w-full text-center my-auto">
-            <div className="space-y-3 mb-8">
-              <div className="w-14 h-14 rounded-2xl bg-white/80 dark:bg-[#0E1522]/90 border border-slate-200 dark:border-white/12 flex items-center justify-center mx-auto shadow-xs">
+            <div
+              className={`space-y-3 mb-8 ${
+                is3DView
+                  ? 'px-6 py-5 rounded-3xl bg-white/75 dark:bg-[#080C14]/72 border border-slate-200/80 dark:border-white/10 shadow-sm'
+                  : ''
+              }`}
+            >
+              <div className="w-14 h-14 rounded-2xl bg-white/90 dark:bg-[#0E1522]/90 border border-slate-200 dark:border-white/12 flex items-center justify-center mx-auto shadow-xs">
                 <CamelliaLogo size={36} />
               </div>
               <div className="space-y-1">
@@ -239,7 +266,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   How can I help you today?
                 </h1>
               </div>
-              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 max-w-md mx-auto leading-relaxed">
                 Ask any question, search the live web with citations, write code, solve math, or upload documents and images.
               </p>
             </div>
@@ -252,7 +279,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     type="button"
                     key={idx}
                     onClick={() => onSelectPrompt(card.prompt)}
-                    className="p-4 rounded-2xl bg-white/85 dark:bg-[#0E1522]/80 backdrop-blur-xs hover:bg-white dark:hover:bg-[#131D2F] border border-slate-200 dark:border-white/10 hover:border-teal-500/40 transition-colors text-left group cursor-pointer"
+                    className={`p-4 rounded-2xl border border-slate-200 dark:border-white/10 hover:border-teal-500/40 transition-colors text-left group cursor-pointer ${
+                      is3DView
+                        ? 'bg-white/88 dark:bg-[#0E1522]/84 hover:bg-white/96 dark:hover:bg-[#131D2F]/96'
+                        : 'bg-white/85 dark:bg-[#0E1522]/80 backdrop-blur-xs hover:bg-white dark:hover:bg-[#131D2F]'
+                    }`}
                   >
                     <div className="flex items-center gap-2 mb-1">
                       <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-white/6 text-slate-600 dark:text-slate-300 group-hover:text-teal-500 transition-colors">
@@ -280,6 +311,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 onRegenerate={onRegenerate}
                 onEditMessage={onEditMessage}
                 onRetry={onRetry}
+                is3DView={is3DView}
               />
             ))}
           </div>
@@ -299,7 +331,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       )}
 
       {/* Sticky Bottom Composer */}
-      <div className="shrink-0 bg-gradient-to-t from-[#f8fafc] via-[#f8fafc]/95 dark:from-[#080C14] dark:via-[#080C14]/95 to-transparent pt-3 z-10">
+      <div
+        className={`shrink-0 pt-3 z-10 ${
+          is3DView
+            ? 'bg-gradient-to-t from-[#eaf1f7]/92 via-[#eaf1f7]/60 dark:from-[#080C14]/92 dark:via-[#080C14]/60 to-transparent'
+            : 'bg-gradient-to-t from-[#f8fafc] via-[#f8fafc]/95 dark:from-[#080C14] dark:via-[#080C14]/95 to-transparent'
+        }`}
+      >
         <Composer
           onSendMessage={onSendMessage}
           isStreaming={isStreaming}
@@ -307,6 +345,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           webSearchEnabled={webSearchEnabled}
           onToggleWebSearch={onToggleWebSearch}
           language={language}
+          is3DView={is3DView}
         />
       </div>
     </div>

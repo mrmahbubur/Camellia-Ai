@@ -96,6 +96,7 @@ export interface UserSettings {
   systemInstruction: string;
   language: 'auto' | 'en' | 'bn';
   theme: 'dark' | 'light';
+  threeDView: boolean;
 }
 
 export const AVAILABLE_MODEL_IDS = ['gemini-4-hydrogen', 'gemini-3.1-flash-lite'] as const;
@@ -121,5 +122,6 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
   webSearchEnabled: true,
   systemInstruction: '',
   language: 'auto',
-  theme: 'dark'
+  theme: 'dark',
+  threeDView: false
 };

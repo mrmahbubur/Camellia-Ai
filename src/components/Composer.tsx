@@ -20,6 +20,7 @@ interface ComposerProps {
   language?: 'auto' | 'en' | 'bn';
   placeholder?: string;
   disabled?: boolean;
+  is3DView?: boolean;
 }
 
 const TEXT_EXTENSIONS = /\.(txt|md|markdown|json|csv|js|jsx|ts|tsx|py|html|css|scss|sql|xml|yaml|yml|sh|bash|log)$/i;
@@ -32,7 +33,8 @@ export const Composer: React.FC<ComposerProps> = ({
   onToggleWebSearch,
   language = 'auto',
   placeholder = 'Message Camellia AI...',
-  disabled = false
+  disabled = false,
+  is3DView = false
 }) => {
   const [inputText, setInputText] = useState('');
   const [attachments, setAttachments] = useState<MessageAttachment[]>([]);
@@ -239,7 +241,11 @@ export const Composer: React.FC<ComposerProps> = ({
         }}
         onDragLeave={() => setIsDragging(false)}
         onDrop={handleDrop}
-        className={`relative rounded-2xl bg-white/90 dark:bg-[#0E1522]/90 backdrop-blur-md border shadow-sm transition-colors p-2.5 ${
+        className={`relative rounded-2xl border shadow-sm transition-colors p-2.5 ${
+          is3DView
+            ? 'bg-white/95 dark:bg-[#0E1522]/94'
+            : 'bg-white/90 dark:bg-[#0E1522]/90 backdrop-blur-md'
+        } ${
           isDragging
             ? 'border-teal-500 ring-2 ring-teal-500/20'
             : 'border-slate-200 dark:border-white/12 focus-within:border-teal-500/60 dark:focus-within:border-teal-400/60'

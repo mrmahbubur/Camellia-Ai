@@ -11,7 +11,8 @@ import {
   Moon,
   Sun,
   User,
-  PanelLeftClose
+  PanelLeftClose,
+  Box
 } from 'lucide-react';
 import { ChatSession } from '../types/chat';
 import { AuthUser } from './AuthModal';
@@ -32,6 +33,8 @@ interface SidebarProps {
   currentUser: AuthUser | null;
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
+  is3DView: boolean;
+  onToggle3DView: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -48,7 +51,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenAuth,
   currentUser,
   theme,
-  onToggleTheme
+  onToggleTheme,
+  is3DView,
+  onToggle3DView
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -198,12 +203,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {isOpen && (
         <div
           onClick={onToggle}
-          className="fixed inset-0 bg-black/50 z-30 md:hidden backdrop-blur-xs transition-opacity"
+          className={`fixed inset-0 bg-black/50 z-30 md:hidden transition-opacity ${
+            is3DView ? '' : 'backdrop-blur-xs'
+          }`}
         />
       )}
 
       <aside
-        className={`fixed md:static inset-y-0 left-0 z-40 w-64 sm:w-72 flex flex-col bg-white/95 dark:bg-[#0B111C]/95 backdrop-blur-md border-r border-slate-200 dark:border-white/8 transition-transform duration-200 ease-out shrink-0 select-none ${
+        className={`fixed md:static inset-y-0 left-0 z-40 w-64 sm:w-72 flex flex-col border-r border-slate-200 dark:border-white/8 transition-transform duration-200 ease-out shrink-0 select-none ${
+          is3DView
+            ? 'bg-white/96 dark:bg-[#0B111C]/96'
+            : 'bg-white/95 dark:bg-[#0B111C]/95 backdrop-blur-md'
+        } ${
           isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0 md:w-0 md:opacity-0 md:overflow-hidden md:border-none'
         }`}
       >
@@ -287,8 +298,38 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </div>
 
+        {/* 3D Room Scene Toggle */}
+        <div className="px-3 pt-2.5 pb-1 border-t border-neutral-200 dark:border-[#202026]">
+          <button
+            type="button"
+            onClick={onToggle3DView}
+            aria-pressed={is3DView}
+            data-testid="toggle-3d-view"
+            className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-xs font-medium border transition-colors cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/60 ${
+              is3DView
+                ? 'bg-teal-500/15 border-teal-500/40 text-teal-700 dark:text-teal-300'
+                : 'bg-slate-100/80 dark:bg-[#141B29] border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:border-teal-500/35 hover:text-slate-950 dark:hover:text-white'
+            }`}
+            title={is3DView ? 'Turn off 3D View canvas' : 'Enable interactive 3D room scene behind chat'}
+          >
+            <span className="flex items-center gap-2 min-w-0">
+              <Box className={`w-4 h-4 shrink-0 ${is3DView ? 'text-teal-500 dark:text-teal-400' : 'text-slate-400'}`} />
+              <span>3D View</span>
+            </span>
+            <span
+              className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-md ${
+                is3DView
+                  ? 'bg-teal-500/20 text-teal-700 dark:text-teal-300'
+                  : 'bg-slate-200/80 dark:bg-white/8 text-slate-500 dark:text-slate-400'
+              }`}
+            >
+              {is3DView ? 'On' : 'Off'}
+            </span>
+          </button>
+        </div>
+
         {/* Device History Notice & Clear Control */}
-        <div className="px-3.5 py-2 border-t border-neutral-200 dark:border-[#202026] flex items-center justify-between gap-2 text-[11px] text-neutral-500 dark:text-neutral-400">
+        <div className="px-3.5 py-2 flex items-center justify-between gap-2 text-[11px] text-neutral-500 dark:text-neutral-400">
           <span className="truncate">History is stored on this device</span>
           {confirmClearAll ? (
             <div className="flex items-center gap-1.5 shrink-0">

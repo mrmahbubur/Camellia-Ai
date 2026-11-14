@@ -329,6 +329,13 @@ export function App() {
     }));
   };
 
+  const handleToggle3DView = () => {
+    setSettings((prev) => ({
+      ...prev,
+      threeDView: !prev.threeDView
+    }));
+  };
+
   const handleToggleWebSearch = () => {
     setSettings((prev) => ({
       ...prev,
@@ -881,6 +888,8 @@ export function App() {
         currentUser={currentUser}
         theme={settings.theme}
         onToggleTheme={handleToggleTheme}
+        is3DView={Boolean(settings.threeDView)}
+        onToggle3DView={handleToggle3DView}
       />
 
       <ChatWindow
@@ -911,6 +920,7 @@ export function App() {
         }
         theme={settings.theme}
         onToggleTheme={handleToggleTheme}
+        is3DView={Boolean(settings.threeDView)}
       />
 
       <SettingsModal

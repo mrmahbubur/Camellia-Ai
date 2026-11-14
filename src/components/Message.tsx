@@ -23,6 +23,7 @@ interface MessageProps {
   onRegenerate?: () => void;
   onEditMessage?: (id: string, newText: string) => void;
   onRetry?: () => void;
+  is3DView?: boolean;
 }
 
 export const Message: React.FC<MessageProps> = ({
@@ -30,7 +31,8 @@ export const Message: React.FC<MessageProps> = ({
   isLastAssistant,
   onRegenerate,
   onEditMessage,
-  onRetry
+  onRetry,
+  is3DView = false
 }) => {
   const [copied, setCopied] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -96,8 +98,12 @@ export const Message: React.FC<MessageProps> = ({
     <div
       className={`group py-4 sm:py-6 px-3 sm:px-6 w-full transition-colors ${
         isUser
-          ? 'bg-transparent'
-          : 'bg-white/75 dark:bg-[#0E1522]/75 border-y border-slate-200/70 dark:border-white/7'
+          ? is3DView
+            ? 'bg-white/45 dark:bg-[#080C14]/45'
+            : 'bg-transparent'
+          : is3DView
+            ? 'bg-white/84 dark:bg-[#0E1522]/82 border-y border-slate-200/80 dark:border-white/10'
+            : 'bg-white/75 dark:bg-[#0E1522]/75 border-y border-slate-200/70 dark:border-white/7'
       }`}
     >
       <div className="max-w-3xl mx-auto flex gap-3 sm:gap-4">
