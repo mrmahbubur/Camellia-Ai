@@ -934,6 +934,7 @@ export function App() {
         settings={settings}
         enforceFreeModelsOnly={enforceFreeModelsOnly}
         onSaveSettings={(newSettings) => setSettings(newSettings)}
+        is3DView={Boolean(settings.threeDView)}
       />
 
       <AuthModal
@@ -949,12 +950,14 @@ export function App() {
         onOpenAdminModels={
           currentUser?.role === 'admin' ? () => setIsAdminModelsOpen(true) : undefined
         }
+        is3DView={Boolean(settings.threeDView)}
       />
 
       <AdminModelsModal
         isOpen={isAdminModelsOpen}
         onClose={() => setIsAdminModelsOpen(false)}
         onCatalogueUpdated={fetchModelCatalogue}
+        is3DView={Boolean(settings.threeDView)}
       />
 
       <SponsorsModal
@@ -966,6 +969,7 @@ export function App() {
       <PaidModelConfirmModal
         isOpen={Boolean(pendingPaidRequest)}
         model={pendingPaidRequest?.modelItem || null}
+        is3DView={Boolean(settings.threeDView)}
         onCancel={() => setPendingPaidRequest(null)}
         onSwitchToFree={
           catalogModels.some((m) => m.pricingTier === 'free')

@@ -20,6 +20,7 @@ interface ModelSelectorProps {
   onToggleFreeOnly: () => void;
   isAdmin?: boolean;
   onOpenAdminModels?: () => void;
+  is3DView?: boolean;
 }
 
 function getProviderLabel(provider: ModelProvider): string {
@@ -49,7 +50,8 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   enforceFreeModelsOnly = false,
   onToggleFreeOnly,
   isAdmin,
-  onOpenAdminModels
+  onOpenAdminModels,
+  is3DView = false
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -113,7 +115,13 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 mt-2 w-80 sm:w-96 max-w-[92vw] rounded-2xl bg-white/95 dark:bg-[#0E1522]/95 backdrop-blur-md border border-slate-200 dark:border-white/12 shadow-2xl p-2 z-50 space-y-2">
+        <div
+          className={`absolute left-0 mt-2 w-80 sm:w-96 max-w-[92vw] rounded-2xl border border-slate-200 dark:border-white/12 shadow-2xl p-2 z-50 space-y-2 ${
+            is3DView
+              ? 'bg-white/98 dark:bg-[#0E1522]/98'
+              : 'bg-white/95 dark:bg-[#0E1522]/95 backdrop-blur-md'
+          }`}
+        >
           {/* Free models only toggle (server-enforced) */}
           <div className="flex items-center justify-between gap-2 px-2.5 py-2 rounded-xl bg-slate-100/80 dark:bg-white/5 border border-slate-200/70 dark:border-white/8">
             <div className="flex items-center gap-2 min-w-0">

@@ -23,6 +23,7 @@ interface AdminModelsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onCatalogueUpdated: () => void;
+  is3DView?: boolean;
 }
 
 type ProviderKeyMap = Record<ModelProvider, boolean>;
@@ -30,7 +31,8 @@ type ProviderKeyMap = Record<ModelProvider, boolean>;
 export const AdminModelsModal: React.FC<AdminModelsModalProps> = ({
   isOpen,
   onClose,
-  onCatalogueUpdated
+  onCatalogueUpdated,
+  is3DView = false
 }) => {
   const [catalogue, setCatalogue] = useState<AdminCatalogueStore | null>(null);
   const [providers, setProviders] = useState<ProviderKeyMap>({
@@ -240,7 +242,11 @@ export const AdminModelsModal: React.FC<AdminModelsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/65 backdrop-blur-xs">
+    <div
+      className={`fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/65 ${
+        is3DView ? '' : 'backdrop-blur-xs'
+      }`}
+    >
       <div className="w-full max-w-3xl rounded-2xl bg-white dark:bg-[#0E1522] border border-slate-200 dark:border-white/12 shadow-2xl text-slate-900 dark:text-slate-100 overflow-hidden flex flex-col max-h-[92dvh]">
         {/* Header */}
         <div className="px-5 py-4 border-b border-slate-200 dark:border-white/10 flex items-center justify-between bg-slate-50/90 dark:bg-[#0B111C] shrink-0">

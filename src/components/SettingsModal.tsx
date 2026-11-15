@@ -8,6 +8,7 @@ interface SettingsModalProps {
   settings: UserSettings;
   enforceFreeModelsOnly?: boolean;
   onSaveSettings: (settings: UserSettings) => void;
+  is3DView?: boolean;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -15,7 +16,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onClose,
   settings,
   enforceFreeModelsOnly = false,
-  onSaveSettings
+  onSaveSettings,
+  is3DView = false
 }) => {
   const [formData, setFormData] = useState<UserSettings>({ ...settings });
 
@@ -34,13 +36,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handleReset = () => {
-    setFormData({ ...DEFAULT_USER_SETTINGS, theme: formData.theme });
+    setFormData({
+      ...DEFAULT_USER_SETTINGS,
+      theme: formData.theme,
+      threeDView: formData.threeDView
+    });
   };
 
   const effectiveFreeOnly = enforceFreeModelsOnly || formData.freeModelsOnly;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 backdrop-blur-xs">
+    <div
+      className={`fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 ${
+        is3DView ? '' : 'backdrop-blur-xs'
+      }`}
+    >
       <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-[#0E1522] border border-slate-200 dark:border-white/12 shadow-2xl p-5 sm:p-6 space-y-5 text-slate-900 dark:text-slate-100 max-h-[92dvh] overflow-y-auto">
         <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-white/10">
           <div className="flex items-center gap-2.5">

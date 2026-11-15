@@ -46,6 +46,7 @@ interface AuthModalProps {
   onSyncChatsToServer?: () => Promise<boolean>;
   onRestoreChatsFromServer?: (chats: ChatSession[]) => void;
   onOpenAdminModels?: () => void;
+  is3DView?: boolean;
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({
@@ -58,7 +59,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onLogout,
   onSyncChatsToServer,
   onRestoreChatsFromServer,
-  onOpenAdminModels
+  onOpenAdminModels,
+  is3DView = false
 }) => {
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [usernameOrEmail, setUsernameOrEmail] = useState('');
@@ -277,7 +279,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const savedChatCount = currentUser?.savedData?.savedChats?.length || 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/65 backdrop-blur-xs">
+    <div
+      className={`fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/65 ${
+        is3DView ? '' : 'backdrop-blur-xs'
+      }`}
+    >
       <div className="relative w-full max-w-md bg-white dark:bg-[#0E1522] border border-slate-200 dark:border-white/12 rounded-2xl shadow-2xl text-slate-900 dark:text-slate-100 overflow-hidden flex flex-col max-h-[92dvh]">
         {/* Header */}
         <div className="px-5 py-4 border-b border-slate-200 dark:border-white/10 flex items-center justify-between bg-slate-50 dark:bg-[#0B111C]">

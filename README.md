@@ -42,7 +42,9 @@ Express Backend (server.ts + server/modelRegistry.ts + server/providers.ts)
 - **Multi-Turn Conversations & Device History:** Conversation threads, renaming, full-text chat search, and device-local persistence (`localStorage`) with a one-click **Clear** history control in the sidebar.
 - **Safe Markdown, Math & Code Blocks:** Safe Markdown rendering (`react-markdown`) with `remark-gfm`, KaTeX equations (`remark-math` + `rehype-katex`), and syntax-highlighted code blocks (`highlight.js` + `rehype-highlight`) with copy buttons.
 - **Optional Grounding & Multimodal Attachments:** Toggleable Google Search grounding on supported Gemini models with cited source cards, plus image, PDF, audio, and UTF-8 code/text file analysis.
-- **On-Demand Voice & Account Sync:** Browser Web Speech narration supporting English and Bengali, optional server-backed account sync (`server/authStore.ts`), and an optional standalone FastAPI backend in `camellia-ai/`.
+- **On-Demand Voice & Account Sync:** Browser Web Speech narration supporting English and Bengali, optional disk-backed account sync (`server/authStore.ts` with hashed session tokens), and an optional standalone FastAPI backend in `camellia-ai/`.
+- **Interactive 3D Room View:** Lazy-loaded Three.js Camellia botanical-neural sanctuary canvas toggled from the sidebar with light/dark theme sync, pointer parallax, streaming energy response, and automatic WebGL resource disposal.
+- **Sponsors & Partners Directory:** Categorized and searchable **Sponsors & Partner Links** modal plus rotating sidebar and welcome-screen sponsor placements with transparent disclosure.
 
 ## Planned Features (Not Yet Implemented)
 

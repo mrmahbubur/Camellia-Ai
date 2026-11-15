@@ -8,6 +8,7 @@ interface PaidModelConfirmModalProps {
   onConfirm: () => void;
   onSwitchToFree?: () => void;
   onCancel: () => void;
+  is3DView?: boolean;
 }
 
 export const PaidModelConfirmModal: React.FC<PaidModelConfirmModalProps> = ({
@@ -15,7 +16,8 @@ export const PaidModelConfirmModal: React.FC<PaidModelConfirmModalProps> = ({
   model,
   onConfirm,
   onSwitchToFree,
-  onCancel
+  onCancel,
+  is3DView = false
 }) => {
   if (!isOpen || !model) return null;
 
@@ -24,7 +26,9 @@ export const PaidModelConfirmModal: React.FC<PaidModelConfirmModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 backdrop-blur-xs"
+      className={`fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 ${
+        is3DView ? '' : 'backdrop-blur-xs'
+      }`}
       role="dialog"
       aria-modal="true"
       aria-labelledby="paid-confirm-title"

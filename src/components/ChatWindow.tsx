@@ -199,6 +199,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             onToggleFreeOnly={onToggleFreeOnly}
             isAdmin={currentUser?.role === 'admin'}
             onOpenAdminModels={onOpenAdminModels}
+            is3DView={is3DView}
           />
         </div>
 
