@@ -10,7 +10,9 @@ import {
   Moon,
   Sun,
   ArrowDown,
-  SlidersHorizontal
+  SlidersHorizontal,
+  ExternalLink,
+  ChevronRight
 } from 'lucide-react';
 import { ChatMessage, MessageAttachment, ModelCatalogItem } from '../types/chat';
 import { Message } from './Message';
@@ -18,6 +20,7 @@ import { Composer } from './Composer';
 import { ModelSelector } from './ModelSelector';
 import { AuthUser } from './AuthModal';
 import { CamelliaLogo } from './CamelliaLogo';
+import { SPONSOR_LINKS } from '../data/sponsors';
 
 const LazyCamellia3DScene = lazy(() => import('./Camellia3DScene'));
 
@@ -48,6 +51,7 @@ interface ChatWindowProps {
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
   is3DView: boolean;
+  onOpenSponsors: () => void;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -76,11 +80,18 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onOpenAdminModels,
   theme,
   onToggleTheme,
-  is3DView
+  is3DView,
+  onOpenSponsors
 }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [sponsorOffset, setSponsorOffset] = useState(0);
   const isNearBottomRef = useRef(true);
+
+  const featuredSponsors = [
+    SPONSOR_LINKS[sponsorOffset % SPONSOR_LINKS.length],
+    SPONSOR_LINKS[(sponsorOffset + 1) % SPONSOR_LINKS.length]
+  ];
 
   const handleScroll = () => {
     const el = scrollContainerRef.current;
@@ -300,6 +311,57 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 );
               })}
             </div>
+
+            {/* Featured Sponsored Partners */}
+            <div className="w-full mt-6 pt-5 border-t border-slate-200/80 dark:border-white/10 text-left space-y-2.5">
+              <div className="flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
+                <span>Sponsored Partners</span>
+                <div className="flex items-center gap-3 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setSponsorOffset((prev) => (prev + 2) % SPONSOR_LINKS.length)}
+                    className="inline-flex items-center gap-1 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer whitespace-nowrap"
+                  >
+                    <span>Next</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onOpenSponsors}
+                    className="font-medium text-teal-600 dark:text-teal-400 hover:underline cursor-pointer whitespace-nowrap"
+                  >
+                    View all {SPONSOR_LINKS.length}
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {featuredSponsors.map((sponsor) => (
+                  <a
+                    key={sponsor.id}
+                    href={sponsor.url}
+                    target="_blank"
+                    rel="noopener noreferrer sponsored"
+                    className={`p-3.5 rounded-2xl border border-slate-200 dark:border-white/10 hover:border-teal-500/45 transition-colors flex flex-col justify-between gap-1.5 group ${
+                      is3DView
+                        ? 'bg-white/88 dark:bg-[#0E1522]/84 hover:bg-white/96 dark:hover:bg-[#131D2F]/96'
+                        : 'bg-white/80 dark:bg-[#0E1522]/75 hover:bg-white dark:hover:bg-[#131D2F]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                      <span className="truncate">Sponsored · {sponsor.category}</span>
+                      <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-teal-500 shrink-0" />
+                    </div>
+                    <div className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100 group-hover:text-teal-600 dark:group-hover:text-teal-300 transition-colors truncate">
+                      {sponsor.name}
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1">
+                      {sponsor.tagline}
+                    </p>
+                  </a>
+                ))}
+              </div>
+            </div>
           </div>
         ) : (
           <div className="flex-1 pb-4">
@@ -346,6 +408,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           onToggleWebSearch={onToggleWebSearch}
           language={language}
           is3DView={is3DView}
+          onOpenSponsors={onOpenSponsors}
         />
       </div>
     </div>

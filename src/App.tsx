@@ -5,6 +5,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { AuthModal, AuthUser } from './components/AuthModal';
 import { AdminModelsModal } from './components/AdminModelsModal';
 import { PaidModelConfirmModal } from './components/PaidModelConfirmModal';
+import { SponsorsModal } from './components/SponsorsModal';
 import {
   ChatMessage,
   ChatSession,
@@ -201,6 +202,7 @@ export function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isAdminModelsOpen, setIsAdminModelsOpen] = useState(false);
+  const [isSponsorsOpen, setIsSponsorsOpen] = useState(false);
   const [catalogModels, setCatalogModels] = useState<ModelCatalogItem[]>([]);
   const [catalogDefaultModelId, setCatalogDefaultModelId] = useState<string>('gemini-4-hydrogen');
   const [enforceFreeModelsOnly, setEnforceFreeModelsOnly] = useState(false);
@@ -390,6 +392,7 @@ export function App() {
         setIsSettingsOpen(false);
         setIsAuthModalOpen(false);
         setIsAdminModelsOpen(false);
+        setIsSponsorsOpen(false);
         setPendingPaidRequest(null);
       }
     };
@@ -890,6 +893,7 @@ export function App() {
         onToggleTheme={handleToggleTheme}
         is3DView={Boolean(settings.threeDView)}
         onToggle3DView={handleToggle3DView}
+        onOpenSponsors={() => setIsSponsorsOpen(true)}
       />
 
       <ChatWindow
@@ -921,6 +925,7 @@ export function App() {
         theme={settings.theme}
         onToggleTheme={handleToggleTheme}
         is3DView={Boolean(settings.threeDView)}
+        onOpenSponsors={() => setIsSponsorsOpen(true)}
       />
 
       <SettingsModal
@@ -950,6 +955,12 @@ export function App() {
         isOpen={isAdminModelsOpen}
         onClose={() => setIsAdminModelsOpen(false)}
         onCatalogueUpdated={fetchModelCatalogue}
+      />
+
+      <SponsorsModal
+        isOpen={isSponsorsOpen}
+        onClose={() => setIsSponsorsOpen(false)}
+        is3DView={Boolean(settings.threeDView)}
       />
 
       <PaidModelConfirmModal

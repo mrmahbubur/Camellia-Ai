@@ -21,6 +21,7 @@ interface ComposerProps {
   placeholder?: string;
   disabled?: boolean;
   is3DView?: boolean;
+  onOpenSponsors?: () => void;
 }
 
 const TEXT_EXTENSIONS = /\.(txt|md|markdown|json|csv|js|jsx|ts|tsx|py|html|css|scss|sql|xml|yaml|yml|sh|bash|log)$/i;
@@ -34,7 +35,8 @@ export const Composer: React.FC<ComposerProps> = ({
   language = 'auto',
   placeholder = 'Message Camellia AI...',
   disabled = false,
-  is3DView = false
+  is3DView = false,
+  onOpenSponsors
 }) => {
   const [inputText, setInputText] = useState('');
   const [attachments, setAttachments] = useState<MessageAttachment[]>([]);
@@ -397,6 +399,19 @@ export const Composer: React.FC<ComposerProps> = ({
       <div className="text-center mt-2">
         <p className="text-[11px] text-neutral-500 dark:text-neutral-400 select-none">
           AI responses can be inaccurate. Avoid sharing passwords or sensitive information.
+          {onOpenSponsors && (
+            <>
+              {' '}
+              <span aria-hidden="true">·</span>{' '}
+              <button
+                type="button"
+                onClick={onOpenSponsors}
+                className="font-medium text-teal-600 dark:text-teal-400 hover:underline cursor-pointer"
+              >
+                Sponsors
+              </button>
+            </>
+          )}
         </p>
       </div>
     </div>
