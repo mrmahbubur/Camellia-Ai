@@ -120,7 +120,7 @@ def public_models():
             {
                 "id": MODEL,
                 "provider": "gemini",
-                "name": MODEL,
+                "name": "Camellia V.2" if MODEL == "gemini-4-hydrogen" else MODEL,
                 "tag": "Default · Grounded",
                 "description": "Primary Google Gemini model.",
                 "pricingTier": "free",
@@ -184,7 +184,8 @@ def chat_stream(req: ChatRequest):
             for chunk in stream:
                 if getattr(chunk, "text", None):
                     yield f"data: {json.dumps({'text': chunk.text})}\n\n"
-            yield f"data: {json.dumps({'done': True, 'modelUsed': selected_model, 'modelIdUsed': selected_model, 'providerUsed': 'gemini', 'pricingTier': 'free', 'sources': [], 'searchQueries': []})}\n\n"
+            selected_name = "Camellia V.2" if selected_model == "gemini-4-hydrogen" else selected_model
+            yield f"data: {json.dumps({'done': True, 'modelUsed': selected_name, 'modelIdUsed': selected_model, 'providerUsed': 'gemini', 'pricingTier': 'free', 'sources': [], 'searchQueries': []})}\n\n"
         except Exception as exc:
             yield f"data: {json.dumps({'error': f'Camellia is temporarily unavailable: {exc}', 'errorType': 'network'})}\n\n"
 

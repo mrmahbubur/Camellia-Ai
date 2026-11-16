@@ -64,7 +64,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           {
             id: currentModel || 'gemini-4-hydrogen',
             provider: 'gemini',
-            name: currentModel === 'gemini-3.1-flash-lite' ? 'Gemini 3.1 Flash Lite' : 'Gemini 4 Hydrogen',
+            name: currentModel === 'gemini-3.1-flash-lite' ? 'Gemini 3.1 Flash Lite' : 'Camellia V.2',
             tag: 'Default · Grounded',
             description: 'Default adaptive multimodal model.',
             pricingTier: 'free',

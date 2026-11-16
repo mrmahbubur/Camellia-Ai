@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+camellia-ai/.env
+camellia-ai/__pycache__/
+*.log
+server/data/users.json
+server/data/sessions.json
+.DS_Store

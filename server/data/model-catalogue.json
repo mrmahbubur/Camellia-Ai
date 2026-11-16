@@ -11,7 +11,7 @@
     {
       "id": "gemini-4-hydrogen",
       "provider": "gemini",
-      "name": "Gemini 4 Hydrogen",
+      "name": "Camellia V.2",
       "tag": "Default · Grounded",
       "description": "Latest multimodal Flash model with adaptive reasoning and live Google Search grounding.",
       "pricingTier": "free",

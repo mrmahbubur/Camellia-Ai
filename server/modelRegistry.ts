@@ -78,7 +78,7 @@ function getDefaultCatalogue(): ModelCatalogueStore {
       {
         id: 'gemini-4-hydrogen',
         provider: 'gemini',
-        name: 'Gemini 4 Hydrogen',
+        name: 'Camellia V.2',
         tag: 'Default · Grounded',
         description: 'Latest multimodal Flash model with adaptive reasoning and live Google Search grounding.',
         pricingTier: 'free',
@@ -169,6 +169,11 @@ export function loadCatalogue(): ModelCatalogueStore {
       lastRefreshedAt: parsed.lastRefreshedAt || base.lastRefreshedAt,
       models: Array.isArray(parsed.models) && parsed.models.length > 0 ? parsed.models : base.models,
     };
+    const primaryEntry = store.models.find((m) => m.id === 'gemini-4-hydrogen');
+    if (primaryEntry && primaryEntry.name === 'Gemini 4 Hydrogen') {
+      primaryEntry.name = 'Camellia V.2';
+      saveCatalogue(store);
+    }
     return store;
   } catch (err) {
     console.error('[MODEL REGISTRY] Error reading catalogue, using defaults:', err);
