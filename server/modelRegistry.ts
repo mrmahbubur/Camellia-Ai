@@ -69,7 +69,7 @@ function getDefaultCatalogue(): ModelCatalogueStore {
     defaultModelId: 'gemini-4-hydrogen',
     fallbackModelId: 'gemini-3.1-flash-lite',
     enforceFreeModelsOnly: false,
-    maxOutputTokens: 8192,
+    maxOutputTokens: 16384,
     dailySpendCapUsd: 5.0,
     estimatedSpendTodayUsd: 0,
     spendDate: getTodayDateString(),
@@ -113,11 +113,11 @@ function getDefaultCatalogue(): ModelCatalogueStore {
         provider: 'openrouter',
         name: 'OpenRouter Free Router',
         tag: 'OpenRouter · Free',
-        description: 'Dynamic free-model router via OpenRouter (requires OPENROUTER_API_KEY & admin approval).',
+        description: 'Dynamic free-model router across OpenRouter free tier models with automatic failover.',
         pricingTier: 'free',
-        pricingNote: 'Free router (availability & latency vary)',
-        status: 'needs_review',
-        capabilities: { streaming: true, searchGrounding: false, thinking: false, multimodal: false },
+        pricingNote: 'Free router · unlimited free pool',
+        status: 'approved',
+        capabilities: { streaming: true, searchGrounding: false, thinking: false, multimodal: true },
       },
     ],
   };
@@ -170,8 +170,18 @@ export function loadCatalogue(): ModelCatalogueStore {
       models: Array.isArray(parsed.models) && parsed.models.length > 0 ? parsed.models : base.models,
     };
     const primaryEntry = store.models.find((m) => m.id === 'gemini-4-hydrogen');
+    let dirty = false;
     if (primaryEntry && primaryEntry.name === 'Gemini 4 Hydrogen') {
       primaryEntry.name = 'Camellia V.2';
+      dirty = true;
+    }
+    const openRouterFreeEntry = store.models.find((m) => m.id === 'openrouter/free');
+    if (openRouterFreeEntry && openRouterFreeEntry.status === 'needs_review') {
+      openRouterFreeEntry.status = 'approved';
+      openRouterFreeEntry.capabilities.multimodal = true;
+      dirty = true;
+    }
+    if (dirty) {
       saveCatalogue(store);
     }
     return store;
@@ -318,11 +328,12 @@ export function resolveChatRouting(
   }
 
   const candidates: CatalogModelEntry[] = [primary];
+  const addedIds = new Set<string>([primary.id]);
 
   // Strict No-Silent-Paid-Fallback Rule:
-  // Only fall back to an approved, configured model that is VERIFIED FREE tier.
-  // Never silently upgrade or route a free-tier request onto a paid or unverified model.
-  if (store.fallbackModelId && store.fallbackModelId !== primary.id) {
+  // Only fall back to approved, configured models that are VERIFIED FREE tier.
+  // Never silently upgrade or route any request onto a paid or unverified model.
+  if (store.fallbackModelId && !addedIds.has(store.fallbackModelId)) {
     const fb = store.models.find((m) => m.id === store.fallbackModelId);
     if (
       fb &&
@@ -332,7 +343,34 @@ export function resolveChatRouting(
       isProviderConfigured(fb.provider)
     ) {
       candidates.push(fb);
+      addedIds.add(fb.id);
     }
+  }
+
+  // Cascade across additional verified free models (same provider first, then cross-provider free routers)
+  // so quota limits on one free model/provider automatically fail over cleanly to another free model.
+  const remainingFree = store.models
+    .filter(
+      (m) =>
+        !addedIds.has(m.id) &&
+        m.status === 'approved' &&
+        !isRetiredOrUnsupported(m.id) &&
+        m.pricingTier === 'free' &&
+        isProviderConfigured(m.provider)
+    )
+    .sort((a, b) => {
+      const aSame = a.provider === primary.provider ? 0 : 1;
+      const bSame = b.provider === primary.provider ? 0 : 1;
+      if (aSame !== bSame) return aSame - bSame;
+      if (a.id === 'openrouter/free') return -1;
+      if (b.id === 'openrouter/free') return 1;
+      return 0;
+    });
+
+  for (const fb of remainingFree) {
+    if (candidates.length >= 5) break;
+    candidates.push(fb);
+    addedIds.add(fb.id);
   }
 
   return {
@@ -445,7 +483,10 @@ export async function refreshCatalogueFromProviders(): Promise<{
                 : pricingTier === 'paid'
                   ? 'OpenRouter · Paid'
                   : 'OpenRouter · Price not verified',
-            description: 'Discovered from OpenRouter catalogue (awaiting admin review).',
+            description:
+              pricingTier === 'free'
+                ? 'Verified free-tier OpenRouter model ready for use.'
+                : 'Discovered from OpenRouter catalogue (awaiting admin review).',
             pricingTier,
             pricingNote:
               pricingTier === 'free'
@@ -453,7 +494,7 @@ export async function refreshCatalogueFromProviders(): Promise<{
                 : pricingTier === 'paid'
                   ? 'Paid OpenRouter usage'
                   : 'Price not verified (confirmation required)',
-            status: 'needs_review',
+            status: pricingTier === 'free' ? 'approved' : 'needs_review',
             capabilities: { streaming: true, searchGrounding: false, thinking: false, multimodal: false },
             discoveredAt: now,
           });

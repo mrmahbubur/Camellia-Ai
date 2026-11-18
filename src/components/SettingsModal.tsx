@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Settings, Brain, Globe, Terminal, RotateCcw, Search, ShieldCheck } from 'lucide-react';
+import { X, Settings, Brain, Globe, Terminal, RotateCcw, Search, ShieldCheck, Server, CheckCircle2, AlertCircle } from 'lucide-react';
 import { UserSettings, DEFAULT_USER_SETTINGS } from '../types/chat';
+import { getStoredApiBaseUrl, getEnvApiBaseUrl, setApiBaseUrl, testBackendConnection } from '../utils/api';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -8,6 +9,7 @@ interface SettingsModalProps {
   settings: UserSettings;
   enforceFreeModelsOnly?: boolean;
   onSaveSettings: (settings: UserSettings) => void;
+  onBackendUrlUpdated?: () => void;
   is3DView?: boolean;
 }
 
@@ -17,13 +19,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   settings,
   enforceFreeModelsOnly = false,
   onSaveSettings,
+  onBackendUrlUpdated,
   is3DView = false
 }) => {
   const [formData, setFormData] = useState<UserSettings>({ ...settings });
+  const [backendUrl, setBackendUrl] = useState('');
+  const [isTestingBackend, setIsTestingBackend] = useState(false);
+  const [backendTestResult, setBackendTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       setFormData({ ...settings });
+      setBackendUrl(getStoredApiBaseUrl());
+      setBackendTestResult(null);
     }
   }, [isOpen, settings]);
 
@@ -31,8 +39,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
+    const prevStored = getStoredApiBaseUrl();
+    const nextStored = setApiBaseUrl(backendUrl);
     onSaveSettings(formData);
+    if (prevStored !== nextStored) {
+      onBackendUrlUpdated?.();
+    }
     onClose();
+  };
+
+  const handleTestBackend = async () => {
+    setIsTestingBackend(true);
+    setBackendTestResult(null);
+    const result = await testBackendConnection(backendUrl.trim() || undefined);
+    setBackendTestResult(result);
+    setIsTestingBackend(false);
   };
 
   const handleReset = () => {
@@ -41,6 +62,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       theme: formData.theme,
       threeDView: formData.threeDView
     });
+    setBackendUrl('');
+    setBackendTestResult(null);
   };
 
   const effectiveFreeOnly = enforceFreeModelsOnly || formData.freeModelsOnly;
@@ -193,6 +216,53 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <option value="en">English</option>
               <option value="bn">Bengali / বাংলা</option>
             </select>
+          </div>
+
+          {/* Optional Express Backend URL for Static Hosting */}
+          <div className="space-y-1.5 pt-2 border-t border-slate-200 dark:border-white/10">
+            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+              <Server className="w-3.5 h-3.5 text-teal-500" />
+              <span>Express Backend URL (Optional · Static Hosting)</span>
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="url"
+                value={backendUrl}
+                onChange={(e) => {
+                  setBackendUrl(e.target.value);
+                  setBackendTestResult(null);
+                }}
+                placeholder={getEnvApiBaseUrl() || 'https://your-camellia-backend.run.app'}
+                className="flex-1 bg-slate-50 dark:bg-[#080C14] border border-slate-300 dark:border-white/12 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 font-mono focus:outline-none focus:border-teal-500"
+              />
+              <button
+                type="button"
+                onClick={handleTestBackend}
+                disabled={isTestingBackend}
+                className="px-3 py-2 rounded-xl bg-slate-200/80 dark:bg-white/8 hover:bg-slate-300/80 dark:hover:bg-white/14 text-xs font-medium text-slate-800 dark:text-slate-200 transition-colors cursor-pointer disabled:opacity-50 whitespace-nowrap shrink-0"
+              >
+                {isTestingBackend ? 'Testing...' : 'Test'}
+              </button>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Leave empty when running on the Express server. Only needed when serving static files (e.g. GitHub Pages) to point to your deployed Express backend.
+            </p>
+            {backendTestResult && (
+              <div
+                className={`mt-1.5 px-2.5 py-2 rounded-lg text-[11px] flex items-center gap-1.5 ${
+                  backendTestResult.ok
+                    ? 'bg-teal-500/10 text-teal-700 dark:text-teal-300 border border-teal-500/25'
+                    : 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-500/25'
+                }`}
+              >
+                {backendTestResult.ok ? (
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                ) : (
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                )}
+                <span>{backendTestResult.message}</span>
+              </div>
+            )}
           </div>
 
           {/* Buttons Footer */}

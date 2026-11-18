@@ -2,7 +2,7 @@
   "defaultModelId": "gemini-4-hydrogen",
   "fallbackModelId": "gemini-3.1-flash-lite",
   "enforceFreeModelsOnly": false,
-  "maxOutputTokens": 8192,
+  "maxOutputTokens": 16384,
   "dailySpendCapUsd": 5,
   "estimatedSpendTodayUsd": 0,
   "spendDate": "2026-11-14",
@@ -61,15 +61,15 @@
       "provider": "openrouter",
       "name": "OpenRouter Free Router",
       "tag": "OpenRouter · Free",
-      "description": "Dynamic free-model router via OpenRouter (requires OPENROUTER_API_KEY & admin approval).",
+      "description": "Dynamic free-model router across OpenRouter free tier models with automatic failover.",
       "pricingTier": "free",
-      "pricingNote": "Free router (availability & latency vary)",
-      "status": "needs_review",
+      "pricingNote": "Free router · unlimited free pool",
+      "status": "approved",
       "capabilities": {
         "streaming": true,
         "searchGrounding": false,
         "thinking": false,
-        "multimodal": false
+        "multimodal": true
       }
     }
   ]

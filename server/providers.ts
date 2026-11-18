@@ -451,28 +451,61 @@ export async function streamFromProvider(params: {
     throw err;
   }
 
-  const orMessages: Array<{ role: string; content: string }> = [{ role: 'system', content: systemInstruction }];
+  const buildOpenRouterContent = (text: string, atts: any[] = []): string | any[] => {
+    const extraTexts = atts.map(decodeTextAttachment).filter(Boolean).join('\n\n');
+    const combinedText = [extraTexts, text].filter(Boolean).join('\n\n');
+    const imageAtts = atts.filter((att) => att?.data && (att.type || '').toLowerCase().startsWith('image/'));
+
+    if (imageAtts.length === 0) {
+      return combinedText;
+    }
+
+    const parts: any[] = [];
+    if (combinedText) {
+      parts.push({ type: 'text', text: combinedText });
+    }
+    for (const img of imageAtts) {
+      const dataUrl = img.data.startsWith('data:') ? img.data : `data:${img.type};base64,${img.data}`;
+      parts.push({
+        type: 'image_url',
+        image_url: { url: dataUrl },
+      });
+    }
+    return parts;
+  };
+
+  const orMessages: Array<{ role: string; content: string | any[] }> = [
+    { role: 'system', content: systemInstruction },
+  ];
   for (const h of history) {
     const textVal = h.content || h.text || '';
-    const extraTexts = (h.attachments || []).map(decodeTextAttachment).filter(Boolean).join('\n\n');
-    const combined = [extraTexts, textVal].filter(Boolean).join('\n\n');
-    if (combined) {
+    const content = buildOpenRouterContent(textVal, h.attachments || []);
+    const hasContent = Array.isArray(content) ? content.length > 0 : Boolean(content);
+    if (hasContent) {
       orMessages.push({
         role: h.role === 'assistant' || h.role === 'model' ? 'assistant' : 'user',
-        content: combined,
+        content,
       });
     }
   }
-  const currentExtras = (attachments || []).map(decodeTextAttachment).filter(Boolean).join('\n\n');
   orMessages.push({
     role: 'user',
-    content: [currentExtras, message].filter(Boolean).join('\n\n'),
+    content: buildOpenRouterContent(message, attachments),
   });
 
   const { controller, cleanup } = composeAbortSignal(abortSignal);
   let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
 
   try {
+    const bodyPayload: Record<string, any> = {
+      model: modelEntry.id,
+      stream: true,
+      messages: orMessages,
+    };
+    if (modelEntry.pricingTier !== 'free' && maxOutputTokens > 0) {
+      bodyPayload.max_tokens = Math.min(maxOutputTokens, 8192);
+    }
+
     const resp = await raceWithTimeout(
       fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
@@ -480,14 +513,10 @@ export async function streamFromProvider(params: {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${orKey}`,
+          'HTTP-Referer': 'https://camellia-ai.app',
           'X-Title': 'Camellia AI',
         },
-        body: JSON.stringify({
-          model: modelEntry.id,
-          max_tokens: maxOutputTokens,
-          stream: true,
-          messages: orMessages,
-        }),
+        body: JSON.stringify(bodyPayload),
       }),
       firstChunkTimeoutMs,
       `${modelEntry.id} request timed out`
@@ -522,15 +551,21 @@ export async function streamFromProvider(params: {
         if (!trimmed.startsWith('data:')) continue;
         const jsonPart = trimmed.replace(/^data:\s*/, '');
         if (!jsonPart || jsonPart === '[DONE]') continue;
+        let evt: any;
         try {
-          const evt = JSON.parse(jsonPart);
-          const delta = evt?.choices?.[0]?.delta?.content;
-          if (typeof delta === 'string' && delta.length > 0) {
-            streamedChars += delta.length;
-            callbacks.onText(delta);
-          }
+          evt = JSON.parse(jsonPart);
         } catch {
-          // ignore partial SSE JSON
+          continue;
+        }
+        if (evt?.error) {
+          const err: any = new Error(evt.error?.message || 'OpenRouter stream error');
+          err.status = evt.error?.code || 502;
+          throw err;
+        }
+        const delta = evt?.choices?.[0]?.delta?.content;
+        if (typeof delta === 'string' && delta.length > 0) {
+          streamedChars += delta.length;
+          callbacks.onText(delta);
         }
       }
     }

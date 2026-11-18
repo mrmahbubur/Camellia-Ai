@@ -206,6 +206,7 @@ export function App() {
   const [catalogModels, setCatalogModels] = useState<ModelCatalogItem[]>([]);
   const [catalogDefaultModelId, setCatalogDefaultModelId] = useState<string>('gemini-4-hydrogen');
   const [enforceFreeModelsOnly, setEnforceFreeModelsOnly] = useState(false);
+  const [backendUnavailable, setBackendUnavailable] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [confirmedPaidModels, setConfirmedPaidModels] = useState<string[]>([]);
   const confirmedPaidModelsRef = useRef<string[]>([]);
@@ -222,7 +223,13 @@ export function App() {
     try {
       const qs = settings.freeModelsOnly ? '?freeOnly=1' : '';
       const res = await fetch(getApiUrl(`/api/models${qs}`));
-      if (!res.ok || !isJsonResponse(res)) return;
+      if (!res.ok || !isJsonResponse(res)) {
+        if (res.status === 404 || res.status === 405 || (res.headers.get('content-type') || '').toLowerCase().includes('text/html')) {
+          setBackendUnavailable(true);
+        }
+        return;
+      }
+      setBackendUnavailable(false);
       const data = (await res.json()) as ModelCatalogResponse;
       setEnforceFreeModelsOnly(Boolean(data?.enforceFreeModelsOnly));
       if (!Array.isArray(data?.models)) return;
@@ -673,14 +680,17 @@ export function App() {
             // keep generic HTTP message
           }
         } else if (response.status === 404 || response.status === 405) {
-          serverError = 'Chat backend is unavailable on static hosting. Configure VITE_API_BASE_URL or deploy with the Express server.';
+          setBackendUnavailable(true);
+          serverError = 'Chat backend is unavailable on static hosting. Open Settings to configure an Express Backend URL or deploy with the Express server.';
         }
         throw new Error(serverError);
       }
 
       if (responseType.includes('text/html')) {
-        throw new Error('Chat backend is unavailable on static hosting. Configure VITE_API_BASE_URL or deploy with the Express server.');
+        setBackendUnavailable(true);
+        throw new Error('Chat backend is unavailable on static hosting. Open Settings to configure an Express Backend URL or deploy with the Express server.');
       }
+      setBackendUnavailable(false);
 
       if (!response.body) {
         throw new Error('Response stream is unavailable.');
@@ -926,6 +936,7 @@ export function App() {
         onToggleTheme={handleToggleTheme}
         is3DView={Boolean(settings.threeDView)}
         onOpenSponsors={() => setIsSponsorsOpen(true)}
+        backendUnavailable={backendUnavailable}
       />
 
       <SettingsModal
@@ -934,6 +945,10 @@ export function App() {
         settings={settings}
         enforceFreeModelsOnly={enforceFreeModelsOnly}
         onSaveSettings={(newSettings) => setSettings(newSettings)}
+        onBackendUrlUpdated={() => {
+          setBackendUnavailable(false);
+          fetchModelCatalogue();
+        }}
         is3DView={Boolean(settings.threeDView)}
       />
 

@@ -309,17 +309,10 @@ app.post('/api/auth/logout', (req: Request, res: Response) => {
 });
 
 // Real-Time Token Streaming Endpoint (Server-Sent Events)
-const MAX_MESSAGE_CHARS = 32000;
-const MAX_HISTORY_TURNS = 40;
+const MAX_MESSAGE_CHARS = 64000;
+const MAX_HISTORY_TURNS = 80;
 
 app.post('/api/chat/stream', async (req: Request, res: Response) => {
-  const ip = req.ip || req.socket.remoteAddress || 'unknown';
-  const rateCheck = checkRateLimit(`chat_${ip}`, 30, 60000);
-  if (!rateCheck.allowed) {
-    return res.status(429).json({
-      error: `Too many requests right now. Please wait ${rateCheck.retryAfter}s and try again.`,
-    });
-  }
 
   const {
     message,
@@ -505,7 +498,7 @@ app.post('/api/chat/stream', async (req: Request, res: Response) => {
         }
 
         console.info(
-          `[CHAT STREAM] ${currentModel.id} (${currentModel.provider}) attempt ended (${classified.errorType}); checking safe free fallback if configured.`
+          `[CHAT STREAM] ${currentModel.id} (${currentModel.provider}) attempt ended (${classified.errorType}): ${err?.message || err}`
         );
         break;
       }

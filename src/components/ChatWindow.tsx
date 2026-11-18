@@ -12,7 +12,8 @@ import {
   ArrowDown,
   SlidersHorizontal,
   ExternalLink,
-  ChevronRight
+  ChevronRight,
+  AlertCircle
 } from 'lucide-react';
 import { ChatMessage, MessageAttachment, ModelCatalogItem } from '../types/chat';
 import { Message } from './Message';
@@ -52,6 +53,7 @@ interface ChatWindowProps {
   onToggleTheme: () => void;
   is3DView: boolean;
   onOpenSponsors: () => void;
+  backendUnavailable?: boolean;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -81,7 +83,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   theme,
   onToggleTheme,
   is3DView,
-  onOpenSponsors
+  onOpenSponsors,
+  backendUnavailable = false
 }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
@@ -251,6 +254,25 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           </button>
         </div>
       </header>
+
+      {/* Static Hosting Notice (only shown if backend returns static HTML / 404) */}
+      {backendUnavailable && (
+        <div className="z-20 px-4 py-2.5 bg-amber-500/12 border-b border-amber-500/30 text-amber-800 dark:text-amber-200 text-xs flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+            <span>
+              Static hosting detected without a connected Express backend. Configure your Express Backend URL in Settings or deploy with the Express server.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={onOpenSettings}
+            className="px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-[11px] transition-colors cursor-pointer shrink-0 whitespace-nowrap"
+          >
+            Connect Backend
+          </button>
+        </div>
+      )}
 
       {/* Main Messages Scroll Area */}
       <div

@@ -127,7 +127,6 @@ function isDesignatedAdminEmail(emailOrIdentifier: string): boolean {
 function loadUsers(): Record<string, UserRecord> {
   try {
     if (!fs.existsSync(USERS_FILE)) {
-      fs.writeFileSync(USERS_FILE, JSON.stringify({}), 'utf-8');
       return {};
     }
     const raw = fs.readFileSync(USERS_FILE, 'utf-8');

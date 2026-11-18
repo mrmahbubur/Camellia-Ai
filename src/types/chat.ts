@@ -99,7 +99,11 @@ export interface UserSettings {
   threeDView: boolean;
 }
 
-export const AVAILABLE_MODEL_IDS = ['gemini-4-hydrogen', 'gemini-3.1-flash-lite'] as const;
+export const AVAILABLE_MODEL_IDS = [
+  'gemini-4-hydrogen',
+  'gemini-3.1-flash-lite',
+  'openrouter/free'
+] as const;
 
 export function normalizeModelId(
   requested?: string,
